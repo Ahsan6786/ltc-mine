@@ -1,11 +1,11 @@
-const CACHE_NAME = 'ltc-pwa-cache-v1';
+const CACHE_NAME = 'ltc-pwa-cache-v2';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
   '/favicon.svg',
   '/manifest.json',
-  '/icon-192.png',
-  '/icon-512.png',
+  '/logoo.png',
+  '/spla.png',
   '/ltc.png',
   '/pattern2.png'
 ];

@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { GraduationCap, Calendar, CheckSquare, FileText, Activity, LayoutDashboard, ClipboardList, PenTool, Search, LogOut, MessageSquare, Users, Bell, Menu, Clock } from 'lucide-react'
+import { GraduationCap, Calendar, CheckSquare, FileText, Activity, LayoutDashboard, ClipboardList, PenTool, Search, LogOut, MessageSquare, Users, Bell, Menu, Clock, RefreshCw } from 'lucide-react'
 import ScrollToTop from './ScrollToTop'
 import TimetablePanel from './TimetablePanel'
 
@@ -46,8 +46,8 @@ export default function FacultyDashboard() {
     return () => window.removeEventListener('resize', handleResize)
   }, [])
 
-  const unreadDocuments = documents.filter(d => !readDocumentIds.includes(d.id))
-  const unreadCount = unreadDocuments.length
+  const unreadDocuments = useMemo(() => documents.filter(d => !readDocumentIds.includes(d.id)), [documents, readDocumentIds])
+  const unreadCount = useMemo(() => unreadDocuments.length, [unreadDocuments])
 
   const markAsRead = (id) => {
     const updated = [...readDocumentIds, id]
@@ -130,11 +130,11 @@ export default function FacultyDashboard() {
     </div>
   )
 
-  const filteredStudents = students.filter(s =>
+  const filteredStudents = useMemo(() => students.filter(s =>
     s.name.toLowerCase().includes(studentSearch.toLowerCase()) ||
     s.email.toLowerCase().includes(studentSearch.toLowerCase()) ||
     (s.panel && s.panel.toLowerCase().includes(studentSearch.toLowerCase()))
-  )
+  ), [students, studentSearch])
 
   const navigate = useNavigate()
   const token = localStorage.getItem('token')
@@ -177,11 +177,6 @@ export default function FacultyDashboard() {
       return
     }
     fetchDashboardData()
-
-    const interval = setInterval(() => {
-      fetchDashboardData()
-    }, 5000)
-    return () => clearInterval(interval)
   }, [])
 
   useEffect(() => {
@@ -600,9 +595,14 @@ export default function FacultyDashboard() {
 
             {/* Active Students Table Card */}
             <div className="glass-card">
-              <h2 style={{ fontSize: '20px', marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <GraduationCap className="text-primary" /> Active Students
-              </h2>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '10px' }}>
+                <h2 style={{ fontSize: '20px', margin: 0, display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <GraduationCap className="text-primary" /> Active Students
+                </h2>
+                <button className="btn btn-outline btn-sm" onClick={fetchDashboardData}>
+                  <RefreshCw size={14} style={{ marginRight: '6px' }} /> Refresh Data
+                </button>
+              </div>
 
               <div className="search-wrapper">
                 <Search className="search-icon" size={20} />
@@ -617,13 +617,22 @@ export default function FacultyDashboard() {
 
               <div style={{ overflowX: 'auto' }}>
                 <table className="data-table">
-                  <thead><tr><th>ID</th><th>Name</th><th>Email</th><th>Panel</th><th>Type</th><th>Actions</th></tr></thead>
+                  <thead><tr><th>PRN / LTC ID</th><th>Name</th><th>Email</th><th>Type</th><th>Actions</th></tr></thead>
                   <tbody>
                     {filteredStudents.map(s => {
                       const isNri = s.nri === true || s.nri === 1 || String(s.nri).toLowerCase() === 'true' || String(s.nri).toLowerCase() === 'yes'
                       return (
                         <tr key={s.id}>
-                          <td>#{s.id}</td>
+                          <td>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                              <code style={{ fontSize: '12px' }}>{s.prn || '—'}</code>
+                              {s.ltc_id && (
+                                <span className="badge badge-blue" style={{ fontSize: '10px', alignSelf: 'flex-start', background: 'var(--primary-bg)', color: 'var(--primary)', border: '1px solid rgba(37, 99, 235, 0.2)' }}>
+                                  LTC ID: {s.ltc_id}
+                                </span>
+                              )}
+                            </div>
+                          </td>
                           <td>
                             {s.name}
                             {s.red_flag && (
@@ -631,7 +640,6 @@ export default function FacultyDashboard() {
                             )}
                           </td>
                           <td>{s.email}</td>
-                          <td><strong>{s.panel || 'Unassigned'}</strong></td>
                           <td>
                             {isNri
                               ? <span style={{ background: '#dbeafe', color: '#1d4ed8', borderRadius: '4px', padding: '2px 8px', fontSize: '11px', fontWeight: '600' }}>NRI</span>
@@ -650,7 +658,7 @@ export default function FacultyDashboard() {
                         </tr>
                       )
                     })}
-                    {students.length === 0 && <tr><td colSpan="6" style={{ textAlign: 'center' }}>No students found.</td></tr>}
+                    {students.length === 0 && <tr><td colSpan="5" style={{ textAlign: 'center' }}>No students found.</td></tr>}
                   </tbody>
                 </table>
               </div>
@@ -677,22 +685,29 @@ export default function FacultyDashboard() {
                 onChange={(e) => setStudentSearch(e.target.value)}
               />
             </div>
-
             <div style={{ overflowX: 'auto' }}>
               <table className="data-table">
-                <thead><tr><th>ID</th><th>Name</th><th>Email</th><th>Panel</th><th>Status</th></tr></thead>
+                <thead><tr><th>PRN / LTC ID</th><th>Name</th><th>Email</th><th>Status</th></tr></thead>
                 <tbody>
                   {filteredStudents.filter(s => s.nri === true || s.nri === 1 || String(s.nri).toLowerCase() === 'true' || String(s.nri).toLowerCase() === 'yes').map(s => (
                     <tr key={s.id}>
-                      <td>#{s.id}</td>
+                      <td>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                          <code style={{ fontSize: '12px' }}>{s.prn || '—'}</code>
+                          {s.ltc_id && (
+                            <span className="badge badge-blue" style={{ fontSize: '10px', alignSelf: 'flex-start', background: 'var(--primary-bg)', color: 'var(--primary)', border: '1px solid rgba(37, 99, 235, 0.2)' }}>
+                              LTC ID: {s.ltc_id}
+                            </span>
+                          )}
+                        </div>
+                      </td>
                       <td>{s.name}{s.red_flag && <span style={{ marginLeft: '8px', color: '#e53e3e' }}>🚩</span>}</td>
                       <td>{s.email}</td>
-                      <td><strong>{s.panel || 'Unassigned'}</strong></td>
                       <td><span style={{ background: '#dbeafe', color: '#1d4ed8', borderRadius: '4px', padding: '2px 8px', fontSize: '11px', fontWeight: '600' }}>NRI</span></td>
                     </tr>
                   ))}
                   {filteredStudents.filter(s => s.nri === true || s.nri === 1 || String(s.nri).toLowerCase() === 'true' || String(s.nri).toLowerCase() === 'yes').length === 0 && (
-                    <tr><td colSpan="5" style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted)' }}>No NRI students found. Upload students with <code>nri=yes</code> in the bulk upload.</td></tr>
+                    <tr><td colSpan="4" style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted)' }}>No NRI students found. Upload students with <code>nri=yes</code> in the bulk upload.</td></tr>
                   )}
                 </tbody>
               </table>
@@ -771,7 +786,7 @@ export default function FacultyDashboard() {
             ) : (
               <div style={{ overflowX: 'auto' }}>
                 <table className="data-table">
-                  <thead><tr><th>Student Name</th><th>Panel</th><th>Status</th><th>Actions</th></tr></thead>
+                  <thead><tr><th>PRN / LTC ID</th><th>Student Name</th><th>Status</th><th>Actions</th></tr></thead>
                   <tbody>
                     {filteredStudents.map(st => {
                       const selectedSchedule = schedules.find(s => s.id === parseInt(selectedScheduleId))
@@ -780,8 +795,17 @@ export default function FacultyDashboard() {
                         const existingRecord = attendanceRecords.find(a => a.student_id === st.id && a.schedule_id === selectedSchedule.id)
                         return (
                           <tr key={st.id}>
+                            <td>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                <code style={{ fontSize: '11px' }}>{st.prn || '—'}</code>
+                                {st.ltc_id && (
+                                  <span className="badge badge-blue" style={{ fontSize: '9px', padding: '1px 4px', alignSelf: 'flex-start', background: 'var(--primary-bg)', color: 'var(--primary)' }}>
+                                    LTC ID: {st.ltc_id}
+                                  </span>
+                                )}
+                              </div>
+                            </td>
                             <td>{st.name}</td>
-                            <td><span className={`badge badge-${st.panel ? st.panel.toLowerCase() : 'student'}`}>{st.panel || 'N/A'}</span></td>
                             <td>
                               {existingRecord ? (
                                 <span className={`badge ${existingRecord.status === 'Present' ? 'badge-student' : 'badge-admin'}`}>
@@ -866,15 +890,13 @@ export default function FacultyDashboard() {
                 { value: 'fully_done', label: 'Done', icon: '✓', color: '#10b981', activeBg: 'rgba(16,185,129,0.15)', activeBorder: '#10b981' },
               ]
 
-              const evalStudents = filteredStudents.filter(st => {
-                const sel = schedules.find(s => s.id === parseInt(selectedEvalScheduleId))
-                return sel && (sel.panel === 'ALL' || sel.panel === st.panel)
-              })
+              // Use all squad students directly — ignore the search filter so eval always shows everyone
+              const evalStudents = students
 
               const pendingCount = Object.keys(selectedMarkings).filter(id => selectedMarkings[id] !== undefined).length
 
               if (evalStudents.length === 0) {
-                return <p style={{ color: '#94a3b8', textAlign: 'center', padding: '20px' }}>No students in this panel for this activity.</p>
+                return <p style={{ color: '#94a3b8', textAlign: 'center', padding: '20px' }}>No students found. Make sure this faculty is assigned to a squad in the active batch.</p>
               }
 
               return (
@@ -925,9 +947,12 @@ export default function FacultyDashboard() {
                       }}>
 
                         {/* Student Info */}
-                        <div style={{ flex: isMobile ? '1 1 auto' : '0 0 180px', minWidth: '120px' }}>
+                        <div style={{ flex: isMobile ? '1 1 auto' : '0 0 200px', minWidth: '150px' }}>
                           <p style={{ fontWeight: '700', fontSize: '14px', margin: 0, color: 'var(--text-main)' }}>{st.name}</p>
-                          <span style={{ fontSize: '11px', background: 'rgba(99,179,237,0.15)', color: '#63b3ed', padding: '2px 8px', borderRadius: '4px', fontWeight: '600' }}>{st.panel}</span>
+                          <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: '4px' }}>
+                            {st.prn && <code style={{ fontSize: '11px', color: '#64748b' }}>{st.prn}</code>}
+                            {st.ltc_id && <span className="badge badge-blue" style={{ fontSize: '9px', padding: '1px 4px' }}>LTC: {st.ltc_id}</span>}
+                          </div>
                         </div>
 
                         {/* Marking Toggle Buttons */}

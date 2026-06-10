@@ -5,7 +5,6 @@ const bcrypt = require('bcryptjs');
 const { Pool } = require('pg');
 const nodemailer = require('nodemailer');
 
-// Load environment variables
 require('dotenv').config();
 
 const app = express();
@@ -18,14 +17,9 @@ const allowedOrigins = [
 const corsOptions = {
   origin: function(origin, callback) {
     if (!origin) return callback(null, true);
-
-    if (
-      allowedOrigins.includes(origin) ||
-      origin.endsWith(".vercel.app")
-    ) {
+    if (allowedOrigins.includes(origin) || origin.endsWith(".vercel.app")) {
       return callback(null, true);
     }
-
     return callback(null, false);
   },
   credentials: true,
@@ -54,7 +48,10 @@ if (process.env.DB_SSL === 'true') {
 
 const pool = new Pool(poolConfig);
 
-// Create test transporter or mock transporter
+// ─── Squad Names (10 Predefined) ─────────────────────────────────────────────
+const SQUAD_NAMES = ['Surya', 'Chandra', 'Mangal', 'Budh', 'Guru', 'Shukra', 'Shani', 'Rahu', 'Ketu', 'Agni'];
+
+// ─── Mailer Setup ─────────────────────────────────────────────────────────────
 let transporter;
 const setupMailer = async () => {
   if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
@@ -63,10 +60,7 @@ const setupMailer = async () => {
         host: process.env.SMTP_HOST,
         port: parseInt(process.env.SMTP_PORT || '587'),
         secure: process.env.SMTP_SECURE === 'true',
-        auth: {
-          user: process.env.SMTP_USER,
-          pass: process.env.SMTP_PASS,
-        },
+        auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
       });
       console.log(`Nodemailer real SMTP transporter ready (using host ${process.env.SMTP_HOST}).`);
     } catch (smtpErr) {
@@ -81,10 +75,7 @@ const setupMailer = async () => {
         host: "smtp.ethereal.email",
         port: 587,
         secure: false,
-        auth: {
-          user: testAccount.user,
-          pass: testAccount.pass,
-        },
+        auth: { user: testAccount.user, pass: testAccount.pass },
       });
       console.log("Nodemailer: Ethereal test transporter ready (real credentials not provided in .env).");
     } catch (err) {
@@ -93,7 +84,6 @@ const setupMailer = async () => {
           console.log("=== MOCK EMAIL SENT ===");
           console.log(`To: ${mailOptions.to}`);
           console.log(`Subject: ${mailOptions.subject}`);
-          console.log(`Body:\n${mailOptions.text}`);
           console.log("=======================");
           return { messageId: 'mock-id-' + Date.now() };
         }
@@ -109,49 +99,29 @@ const sendLtcBatchEmail = async (name, email) => {
     from: process.env.EMAIL_FROM || process.env.SMTP_USER || '"LTC Administration" <no-reply@ltc.edu>',
     to: email,
     subject: 'Congratulations! You have been selected for LTC batch',
-    text: `Dear ${name},
-
-Congratulations! You have been selected to attend the upcoming LTC batch.
-
-Please note that before your student dashboard becomes visible, you must complete the following requirements:
-1. Fill out and submit your Insurance Form.
-2. Complete and submit your Undertaking Form.
-
-To complete these forms, please log in to your student dashboard. You will be automatically prompted to fill out and submit them. Once both forms are submitted, your regular student dashboard features will become fully visible.
-
-Best regards,
-LTC Administration`,
-    html: `<div style="font-family: sans-serif; padding: 20px; color: #334155; line-height: 1.6;">
+    text: `Dear ${name},\n\nCongratulations! You have been selected to attend the upcoming LTC batch.\n\nPlease complete your Insurance Form and Undertaking Form on your student dashboard.\n\nBest regards,\nLTC Administration`,
+    html: `<div style="font-family: sans-serif; padding: 20px; color: #334155;">
       <h2 style="color: #0f172a;">Congratulations!</h2>
       <p>Dear <strong>${name}</strong>,</p>
       <p>You have been selected to attend the upcoming LTC batch.</p>
-      <p>Please note that before your student dashboard becomes visible, you must complete the following requirements:</p>
-      <ol>
-        <li>Fill out and submit your <strong>Insurance Form</strong>.</li>
-        <li>Complete and submit your <strong>Undertaking Form</strong>.</li>
-      </ol>
-      <p>To complete these forms, please log in to your student dashboard. You will be automatically prompted to fill out and submit them. Once both forms are submitted, your regular student dashboard features will become fully visible.</p>
-      <br/>
-      <p>Best regards,<br/><strong>LTC Administration</strong></p>
+      <p>Please complete your <strong>Insurance Form</strong> and <strong>Undertaking Form</strong> on your student dashboard.</p>
+      <br/><p>Best regards,<br/><strong>LTC Administration</strong></p>
     </div>`
   };
-
   try {
     const info = await transporter.sendMail(mailOptions);
     console.log(`Email sent to ${email}: ${info.messageId}`);
     const previewUrl = nodemailer.getTestMessageUrl(info);
-    if (previewUrl) {
-      console.log(`Email Preview URL: ${previewUrl}`);
-    }
+    if (previewUrl) console.log(`Email Preview URL: ${previewUrl}`);
   } catch (err) {
     console.error(`Failed to send email to ${email}:`, err);
   }
 };
 
-// Initialize database schema and Super Admin
+// ─── Database Initialization ──────────────────────────────────────────────────
 const initDB = async () => {
   try {
-    // Create users table
+    // Users table
     await pool.query(`
       CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
@@ -183,13 +153,58 @@ const initDB = async () => {
       );
     `);
 
+    // Legacy columns (for backward compat)
     await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS in_current_batch BOOLEAN DEFAULT false;");
     await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS undertaking_submitted BOOLEAN DEFAULT false;");
     await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS undertaking_signed_name VARCHAR(255);");
     await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS undertaking_signed_date VARCHAR(50);");
     await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_squad_leader BOOLEAN DEFAULT false;");
 
-    // Create schedules table
+    // ── Batches table ──
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS batches (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        location VARCHAR(255),
+        start_date DATE,
+        end_date DATE,
+        status VARCHAR(50) DEFAULT 'upcoming',
+        description TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    // Enterprise upgrade: new batch columns (additive, safe)
+    await pool.query("ALTER TABLE batches ADD COLUMN IF NOT EXISTS batch_code VARCHAR(50);");
+    await pool.query("ALTER TABLE batches ADD COLUMN IF NOT EXISTS year VARCHAR(10);");
+    await pool.query("ALTER TABLE batches ADD COLUMN IF NOT EXISTS capacity INT;");
+    await pool.query("ALTER TABLE batches ADD COLUMN IF NOT EXISTS is_deleted BOOLEAN DEFAULT false;");
+
+    // ── Batch-Student relationship ──
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS batch_students (
+        batch_id INT REFERENCES batches(id) ON DELETE CASCADE,
+        student_id INT REFERENCES users(id) ON DELETE CASCADE,
+        squad VARCHAR(50),
+        room VARCHAR(50),
+        barcode VARCHAR(255),
+        is_squad_leader BOOLEAN DEFAULT false,
+        added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (batch_id, student_id)
+      );
+    `);
+
+    // ── Batch-Faculty relationship ──
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS batch_faculty (
+        batch_id INT REFERENCES batches(id) ON DELETE CASCADE,
+        faculty_id INT REFERENCES users(id) ON DELETE CASCADE,
+        squad VARCHAR(50),
+        added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (batch_id, faculty_id)
+      );
+    `);
+
+    // Schedules
     await pool.query(`
       CREATE TABLE IF NOT EXISTS schedules (
         id SERIAL PRIMARY KEY,
@@ -201,7 +216,7 @@ const initDB = async () => {
       );
     `);
 
-    // Create squad_leaders table
+    // Squad leaders
     await pool.query(`
       CREATE TABLE IF NOT EXISTS squad_leaders (
         squad_name VARCHAR(255) PRIMARY KEY,
@@ -212,7 +227,7 @@ const initDB = async () => {
       );
     `);
 
-    // Create attendance table
+    // Legacy attendance (keep for backward compat)
     await pool.query(`
       CREATE TABLE IF NOT EXISTS attendance (
         id SERIAL PRIMARY KEY,
@@ -222,7 +237,33 @@ const initDB = async () => {
       );
     `);
 
-    // Create evaluations table
+    // ── NEW: Attendance sessions (batch-level, ready architecture) ──
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS attendance_sessions (
+        id SERIAL PRIMARY KEY,
+        batch_id INT REFERENCES batches(id) ON DELETE CASCADE,
+        title VARCHAR(255) NOT NULL,
+        session_date DATE,
+        session_type VARCHAR(50) DEFAULT 'general',
+        created_by INT REFERENCES users(id),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    // ── NEW: Attendance records v2 (batch-level) ──
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS attendance_records_v2 (
+        id SERIAL PRIMARY KEY,
+        session_id INT REFERENCES attendance_sessions(id) ON DELETE CASCADE,
+        student_id INT REFERENCES users(id) ON DELETE CASCADE,
+        batch_id INT REFERENCES batches(id) ON DELETE CASCADE,
+        status VARCHAR(50) DEFAULT 'absent',
+        marked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(session_id, student_id)
+      );
+    `);
+
+    // Evaluations
     await pool.query(`
       CREATE TABLE IF NOT EXISTS evaluations (
         id SERIAL PRIMARY KEY,
@@ -237,18 +278,20 @@ const initDB = async () => {
       );
     `);
 
-    // Create documents table
+    // Documents
     await pool.query(`
       CREATE TABLE IF NOT EXISTS documents (
         id SERIAL PRIMARY KEY,
         name VARCHAR(255),
         url TEXT,
         uploaded_by INT,
-        target_role VARCHAR(50)
+        target_role VARCHAR(50),
+        batch_id INT
       );
     `);
+    await pool.query("ALTER TABLE documents ADD COLUMN IF NOT EXISTS batch_id INT;");
 
-    // Create insurance table
+    // Insurance
     await pool.query(`
       CREATE TABLE IF NOT EXISTS insurance (
         id SERIAL PRIMARY KEY,
@@ -258,7 +301,7 @@ const initDB = async () => {
       );
     `);
 
-    // Create feedback table
+    // Feedback
     await pool.query(`
       CREATE TABLE IF NOT EXISTS feedback (
         id SERIAL PRIMARY KEY,
@@ -271,7 +314,7 @@ const initDB = async () => {
       );
     `);
 
-    // Create system_settings table
+    // System settings
     await pool.query(`
       CREATE TABLE IF NOT EXISTS system_settings (
         key VARCHAR(255) PRIMARY KEY,
@@ -285,6 +328,60 @@ const initDB = async () => {
       ON CONFLICT (key) DO NOTHING;
     `);
 
+    // ── NEW: Audit Logs ──
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS audit_logs (
+        id SERIAL PRIMARY KEY,
+        user_id INT,
+        user_name VARCHAR(255),
+        action VARCHAR(100) NOT NULL,
+        entity_type VARCHAR(50),
+        entity_id INT,
+        details TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    // ── NEW: Certificates (ready architecture) ──
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS certificates (
+        id SERIAL PRIMARY KEY,
+        student_id INT REFERENCES users(id) ON DELETE CASCADE,
+        batch_id INT REFERENCES batches(id) ON DELETE CASCADE,
+        type VARCHAR(50) DEFAULT 'completion',
+        issued_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        data JSONB,
+        UNIQUE(student_id, batch_id, type)
+      );
+    `);
+
+    // ── NEW: Completion Reports (ready architecture) ──
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS completion_reports (
+        id SERIAL PRIMARY KEY,
+        batch_id INT REFERENCES batches(id) ON DELETE CASCADE,
+        generated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        generated_by INT REFERENCES users(id),
+        data JSONB
+      );
+    `);
+
+    // ── Performance Indexes ──
+    await pool.query("CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);");
+    await pool.query("CREATE INDEX IF NOT EXISTS idx_users_prn ON users(prn);");
+    await pool.query("CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);");
+    await pool.query("CREATE INDEX IF NOT EXISTS idx_users_in_batch ON users(in_current_batch);");
+    await pool.query("CREATE INDEX IF NOT EXISTS idx_batch_students_batch ON batch_students(batch_id);");
+    await pool.query("CREATE INDEX IF NOT EXISTS idx_batch_students_student ON batch_students(student_id);");
+    await pool.query("CREATE INDEX IF NOT EXISTS idx_batch_students_squad ON batch_students(squad);");
+    await pool.query("CREATE INDEX IF NOT EXISTS idx_batch_faculty_batch ON batch_faculty(batch_id);");
+    await pool.query("CREATE INDEX IF NOT EXISTS idx_audit_logs_timestamp ON audit_logs(created_at);");
+    await pool.query("CREATE INDEX IF NOT EXISTS idx_audit_logs_user ON audit_logs(user_id);");
+    await pool.query("CREATE INDEX IF NOT EXISTS idx_attendance_sessions_batch ON attendance_sessions(batch_id);");
+    await pool.query("CREATE INDEX IF NOT EXISTS idx_attendance_records_v2_session ON attendance_records_v2(session_id);");
+    await pool.query("CREATE INDEX IF NOT EXISTS idx_attendance_records_v2_batch ON attendance_records_v2(batch_id);");
+
+    // Super Admin
     const adminQuery = await pool.query("SELECT * FROM users WHERE role = 'admin'");
     if (adminQuery.rowCount === 0) {
       const hashedPassword = await bcrypt.hash('123', 10);
@@ -292,7 +389,7 @@ const initDB = async () => {
         "INSERT INTO users (name, email, password, role) VALUES ($1, $2, $3, $4)",
         ['Super Admin', 'admin@ltc.edu', hashedPassword, 'admin']
       );
-      console.log('Super Admin initialized in PostgreSQL: admin@ltc.edu (123)');
+      console.log('Super Admin initialized: admin@ltc.edu (123)');
     } else {
       console.log('PostgreSQL database ready. Super Admin already exists.');
     }
@@ -302,7 +399,27 @@ const initDB = async () => {
 };
 initDB();
 
-// Middleware for auth
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+// Compute LTC ID from PRN (last 4 digits)
+const getLtcId = (prn) => {
+  if (!prn) return null;
+  const digits = String(prn).replace(/\D/g, '');
+  return digits.length >= 4 ? digits.slice(-4) : prn;
+};
+
+// Append ltc_id to each row that has a prn field
+const withLtcId = (rows) => rows.map(r => ({ ...r, ltc_id: getLtcId(r.prn) }));
+
+// Write an audit log entry (non-blocking, fire-and-forget)
+const writeAudit = (userId, userName, action, entityType, entityId, details) => {
+  pool.query(
+    `INSERT INTO audit_logs (user_id, user_name, action, entity_type, entity_id, details)
+     VALUES ($1, $2, $3, $4, $5, $6)`,
+    [userId || null, userName || 'System', action, entityType || null, entityId || null, details ? JSON.stringify(details) : null]
+  ).catch(err => console.error('[AuditLog Error]', err.message));
+};
+
+// ─── Auth Middleware ──────────────────────────────────────────────────────────
 const authMiddleware = (roles = []) => (req, res, next) => {
   const authHeader = req.headers.authorization;
   if (!authHeader) return res.status(401).json({ message: 'No token provided' });
@@ -319,17 +436,35 @@ const authMiddleware = (roles = []) => (req, res, next) => {
   }
 };
 
-// Login Route
+// ─── Login ────────────────────────────────────────────────────────────────────
 app.post('/api/login', async (req, res) => {
   const { email, password } = req.body;
   try {
-    const userQuery = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
+    const userQuery = await pool.query(
+      `SELECT u.*, 
+              (CASE 
+                WHEN u.role = 'student' THEN (
+                  SELECT bs.squad FROM batch_students bs
+                  JOIN batches b ON bs.batch_id = b.id
+                  WHERE bs.student_id = u.id AND (b.is_deleted = false OR b.is_deleted IS NULL)
+                  ORDER BY bs.batch_id DESC LIMIT 1
+                )
+                WHEN u.role = 'faculty' THEN (
+                  SELECT bf.squad FROM batch_faculty bf
+                  JOIN batches b ON bf.batch_id = b.id
+                  WHERE bf.faculty_id = u.id AND (b.is_deleted = false OR b.is_deleted IS NULL)
+                  ORDER BY bf.batch_id DESC LIMIT 1
+                )
+                ELSE NULL
+              END) as batch_squad
+       FROM users u
+       WHERE u.email = $1`,
+      [email]
+    );
     if (userQuery.rowCount === 0) return res.status(400).json({ message: 'User not found' });
-
     const user = userQuery.rows[0];
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(400).json({ message: 'Invalid credentials' });
-
     const token = jwt.sign(
       { id: user.id, role: user.role, department: user.department, panel: user.panel },
       SECRET,
@@ -338,15 +473,9 @@ app.post('/api/login', async (req, res) => {
     res.json({
       token,
       user: {
-        id: user.id,
-        email: user.email,
-        role: user.role,
-        name: user.name,
-        department: user.department,
-        panel: user.panel,
-        division: user.division,
-        school: user.school,
-        squad: user.squad,
+        id: user.id, email: user.email, role: user.role, name: user.name,
+        department: user.department, panel: user.panel, division: user.division,
+        school: user.school, squad: user.batch_squad || user.squad || null,
       },
     });
   } catch (err) {
@@ -354,121 +483,871 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
-// Admin Route: Add Faculty
+// ─── Admin: Add Faculty ───────────────────────────────────────────────────────
 app.post('/api/admin/faculty', authMiddleware(['admin']), async (req, res) => {
   const { name, email, department, division, school, panel, is_primary, gender } = req.body;
   try {
-    const defaultPassword = 'password123';
-    const hashedPassword = await bcrypt.hash(defaultPassword, 10);
-
+    const hashedPassword = await bcrypt.hash('password123', 10);
     const newFaculty = await pool.query(
       "INSERT INTO users (name, email, password, role, department, division, school, panel, is_primary, gender) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id, name, email, role, department, division, school, panel, is_primary, gender",
-      [
-        name,
-        email,
-        hashedPassword,
-        'faculty',
-        department,
-        division || null,
-        school || null,
-        panel || null,
-        is_primary === true || is_primary === 'true',
-        gender || null,
-      ]
+      [name, email, hashedPassword, 'faculty', department, division || null, school || null, panel || null, is_primary === true || is_primary === 'true', gender || null]
     );
-
-    res.status(201).json({
-      message: 'Faculty created successfully. Default password is password123.',
-      faculty: newFaculty.rows[0],
-    });
+    res.status(201).json({ message: 'Faculty created. Default password: password123.', faculty: newFaculty.rows[0] });
   } catch (err) {
     if (err.code === '23505') return res.status(400).json({ message: 'User already exists' });
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
 
-// Admin/Faculty Route: Add Student
+// ─── Admin/Faculty: Add Student ───────────────────────────────────────────────
 app.post('/api/users/student', authMiddleware(['admin', 'faculty']), async (req, res) => {
   const { name, email, semester, department, division, school, panel, prn, gender } = req.body;
   try {
-    const defaultPassword = 'student123';
-    const hashedPassword = await bcrypt.hash(defaultPassword, 10);
-    
-    // Auto-generate PRN if not supplied
+    const hashedPassword = await bcrypt.hash('student123', 10);
     const finalPrn = prn && prn.trim() ? prn.trim() : 'PRN-STU-' + Date.now() + Math.floor(Math.random() * 1000);
-
     const newStudent = await pool.query(
       "INSERT INTO users (name, email, password, role, semester, department, division, school, panel, prn, gender) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id, name, email, role, semester, department, division, school, panel, prn, gender",
-      [
-        name,
-        email,
-        hashedPassword,
-        'student',
-        semester,
-        department,
-        division || null,
-        school || null,
-        panel || null,
-        finalPrn,
-        gender || null,
-      ]
+      [name, email, hashedPassword, 'student', semester, department, division || null, school || null, panel || null, finalPrn, gender || null]
     );
-
-    res.status(201).json({
-      message: 'Student created successfully. Default password is student123.',
-      student: newStudent.rows[0],
-    });
+    res.status(201).json({ message: 'Student created. Default password: student123.', student: newStudent.rows[0] });
   } catch (err) {
     if (err.code === '23505') return res.status(400).json({ message: 'User already exists' });
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
 
-// Faculty Dashboard Routes
+// ─── Admin: Paginated Master Student Database ─────────────────────────────────
+app.get('/api/admin/students', authMiddleware(['admin']), async (req, res) => {
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 50;
+  const offset = (page - 1) * limit;
+  const search = req.query.search || '';
+  const school = req.query.school || '';
+  const department = req.query.department || '';
+
+  try {
+    let whereClause = "WHERE u.role = 'student'";
+    const params = [];
+    let paramIdx = 1;
+
+    if (search) {
+      whereClause += ` AND (u.name ILIKE $${paramIdx} OR u.email ILIKE $${paramIdx} OR u.prn ILIKE $${paramIdx})`;
+      params.push(`%${search}%`);
+      paramIdx++;
+    }
+    if (school) {
+      whereClause += ` AND u.school = $${paramIdx}`;
+      params.push(school);
+      paramIdx++;
+    }
+    if (department) {
+      whereClause += ` AND u.department = $${paramIdx}`;
+      params.push(department);
+      paramIdx++;
+    }
+
+    const countRes = await pool.query(`SELECT COUNT(*) FROM users u ${whereClause}`, params);
+    const total = parseInt(countRes.rows[0].count);
+
+    const dataRes = await pool.query(
+      `SELECT u.id, u.name, u.email, u.role, u.department, u.semester, u.division, u.school, u.panel, u.prn, u.phone, u.gender, u.nri, u.status,
+              (i.prn IS NOT NULL) as insured
+       FROM users u
+       LEFT JOIN insurance i ON u.prn = i.prn
+       ${whereClause}
+       ORDER BY u.name ASC
+       LIMIT $${paramIdx} OFFSET $${paramIdx + 1}`,
+      [...params, limit, offset]
+    );
+
+    res.json({
+      students: withLtcId(dataRes.rows),
+      pagination: { total, page, limit, pages: Math.ceil(total / limit) }
+    });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// ─── Admin: Paginated Master Faculty Database ─────────────────────────────────
+app.get('/api/admin/faculty-list', authMiddleware(['admin']), async (req, res) => {
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 50;
+  const offset = (page - 1) * limit;
+  const search = req.query.search || '';
+
+  try {
+    let whereClause = "WHERE role = 'faculty'";
+    const params = [];
+    let paramIdx = 1;
+
+    if (search) {
+      whereClause += ` AND (name ILIKE $${paramIdx} OR email ILIKE $${paramIdx} OR department ILIKE $${paramIdx})`;
+      params.push(`%${search}%`);
+      paramIdx++;
+    }
+
+    const countRes = await pool.query(`SELECT COUNT(*) FROM users ${whereClause}`, params);
+    const total = parseInt(countRes.rows[0].count);
+
+    const dataRes = await pool.query(
+      `SELECT id, name, email, department, division, school, panel, is_primary, gender, faculty_id, phone, status
+       FROM users ${whereClause} ORDER BY name ASC LIMIT $${paramIdx} OFFSET $${paramIdx + 1}`,
+      [...params, limit, offset]
+    );
+
+    res.json({
+      faculty: dataRes.rows,
+      pagination: { total, page, limit, pages: Math.ceil(total / limit) }
+    });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// ─── Admin: Filter Options for Students ──────────────────────────────────────
+app.get('/api/admin/filter-options', authMiddleware(['admin']), async (req, res) => {
+  try {
+    const schoolsRes = await pool.query("SELECT DISTINCT school FROM users WHERE role='student' AND school IS NOT NULL ORDER BY school");
+    const deptRes = await pool.query("SELECT DISTINCT department FROM users WHERE role='student' AND department IS NOT NULL ORDER BY department");
+    res.json({
+      schools: schoolsRes.rows.map(r => r.school),
+      departments: deptRes.rows.map(r => r.department)
+    });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// BATCH MANAGEMENT API
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// List all batches with stats (excludes soft-deleted)
+app.get('/api/admin/batches', authMiddleware(['admin']), async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT b.*,
+        COUNT(DISTINCT bs.student_id) as student_count,
+        COUNT(DISTINCT bf.faculty_id) as faculty_count
+      FROM batches b
+      LEFT JOIN batch_students bs ON b.id = bs.batch_id
+      LEFT JOIN batch_faculty bf ON b.id = bf.batch_id
+      WHERE b.is_deleted IS NOT TRUE
+      GROUP BY b.id
+      ORDER BY b.created_at DESC
+    `);
+    res.json({ batches: result.rows });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// Create batch (supports batch_code, year, capacity)
+app.post('/api/admin/batches', authMiddleware(['admin']), async (req, res) => {
+  const { name, location, start_date, end_date, status, description, batch_code, year, capacity } = req.body;
+  if (!name) return res.status(400).json({ message: 'Batch name is required' });
+  try {
+    // Auto-generate batch_code if not provided: LTC{year}-B{sequence}
+    let finalCode = batch_code;
+    if (!finalCode) {
+      const batchYear = year || new Date().getFullYear();
+      const countRes = await pool.query("SELECT COUNT(*) FROM batches WHERE is_deleted IS NOT TRUE AND (year = $1 OR EXTRACT(YEAR FROM created_at) = $2)", [String(batchYear), parseInt(batchYear)]);
+      const seq = parseInt(countRes.rows[0].count) + 1;
+      finalCode = `LTC${batchYear}-B${seq}`;
+    }
+    const result = await pool.query(
+      `INSERT INTO batches (name, location, start_date, end_date, status, description, batch_code, year, capacity)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+      [name, location || null, start_date || null, end_date || null, status || 'upcoming', description || null, finalCode, year || null, capacity || null]
+    );
+    writeAudit(req.user.id, req.user.name || 'Admin', 'BATCH_CREATED', 'batch', result.rows[0].id, { name, batch_code: finalCode });
+    res.status(201).json({ message: 'Batch created', batch: result.rows[0] });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// Update batch (supports batch_code, year, capacity)
+app.put('/api/admin/batches/:id', authMiddleware(['admin']), async (req, res) => {
+  const { id } = req.params;
+  const { name, location, start_date, end_date, status, description, batch_code, year, capacity } = req.body;
+  try {
+    const result = await pool.query(
+      `UPDATE batches SET name=$1, location=$2, start_date=$3, end_date=$4, status=$5, description=$6,
+        batch_code=COALESCE($7, batch_code), year=COALESCE($8, year), capacity=COALESCE($9, capacity)
+       WHERE id=$10 AND is_deleted IS NOT TRUE RETURNING *`,
+      [name, location || null, start_date || null, end_date || null, status || 'upcoming', description || null,
+       batch_code || null, year || null, capacity || null, id]
+    );
+    if (result.rowCount === 0) return res.status(404).json({ message: 'Batch not found' });
+    writeAudit(req.user.id, req.user.name || 'Admin', 'BATCH_UPDATED', 'batch', parseInt(id), { name });
+    res.json({ message: 'Batch updated', batch: result.rows[0] });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// Soft-delete batch (sets is_deleted=true; relationships and master records preserved)
+app.delete('/api/admin/batches/:id', authMiddleware(['admin']), async (req, res) => {
+  const { id } = req.params;
+  const { hard } = req.query; // ?hard=true for permanent delete (admin only, with extra confirmation)
+  try {
+    if (hard === 'true') {
+      // Hard delete — permanent, used only in exceptional cases
+      await pool.query("DELETE FROM batches WHERE id = $1", [id]);
+      writeAudit(req.user.id, req.user.name || 'Admin', 'BATCH_HARD_DELETED', 'batch', parseInt(id), {});
+      return res.json({ message: 'Batch permanently deleted.' });
+    }
+    // Default: soft delete
+    const result = await pool.query(
+      "UPDATE batches SET is_deleted = true, status = 'archived' WHERE id = $1 RETURNING id, name",
+      [id]
+    );
+    if (result.rowCount === 0) return res.status(404).json({ message: 'Batch not found' });
+    writeAudit(req.user.id, req.user.name || 'Admin', 'BATCH_ARCHIVED', 'batch', parseInt(id), { name: result.rows[0].name });
+    res.json({ message: 'Batch archived. Student and faculty records remain in master database.' });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// Restore a soft-deleted batch
+app.post('/api/admin/batches/:id/restore', authMiddleware(['admin']), async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await pool.query(
+      "UPDATE batches SET is_deleted = false, status = 'upcoming' WHERE id = $1 RETURNING id, name",
+      [id]
+    );
+    if (result.rowCount === 0) return res.status(404).json({ message: 'Batch not found' });
+    writeAudit(req.user.id, req.user.name || 'Admin', 'BATCH_RESTORED', 'batch', parseInt(id), { name: result.rows[0].name });
+    res.json({ message: 'Batch restored.', batch: result.rows[0] });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// Get batch details (includes squad breakdown)
+app.get('/api/admin/batches/:id', authMiddleware(['admin']), async (req, res) => {
+  const { id } = req.params;
+  try {
+    const batchRes = await pool.query(`
+      SELECT b.*,
+        COUNT(DISTINCT bs.student_id) as student_count,
+        COUNT(DISTINCT bf.faculty_id) as faculty_count
+      FROM batches b
+      LEFT JOIN batch_students bs ON b.id = bs.batch_id
+      LEFT JOIN batch_faculty bf ON b.id = bf.batch_id
+      WHERE b.id = $1
+      GROUP BY b.id
+    `, [id]);
+    if (batchRes.rowCount === 0) return res.status(404).json({ message: 'Batch not found' });
+    // Squad breakdown
+    const squadRes = await pool.query(
+      `SELECT squad, COUNT(*) as count FROM batch_students WHERE batch_id = $1 AND squad IS NOT NULL GROUP BY squad ORDER BY squad`,
+      [id]
+    );
+    res.json({ batch: batchRes.rows[0], squads: squadRes.rows });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// ── Batch Students ────────────────────────────────────────────────────────────
+
+// Get paginated students in a batch
+app.get('/api/admin/batches/:id/students', authMiddleware(['admin']), async (req, res) => {
+  const { id } = req.params;
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 50;
+  const offset = (page - 1) * limit;
+  const search = req.query.search || '';
+
+  try {
+    let whereExtra = '';
+    const params = [parseInt(id)];
+    let paramIdx = 2;
+
+    if (search) {
+      whereExtra = ` AND (u.name ILIKE $${paramIdx} OR u.email ILIKE $${paramIdx} OR u.prn ILIKE $${paramIdx})`;
+      params.push(`%${search}%`);
+      paramIdx++;
+    }
+
+    const countRes = await pool.query(
+      `SELECT COUNT(*) FROM batch_students bs JOIN users u ON bs.student_id = u.id WHERE bs.batch_id = $1${whereExtra}`,
+      params
+    );
+    const total = parseInt(countRes.rows[0].count);
+
+    const dataRes = await pool.query(
+      `SELECT u.id, u.name, u.email, u.prn, u.department, u.semester, u.school, u.division, u.gender, u.phone, u.nri, u.red_flag,
+              bs.squad, bs.room, bs.barcode, bs.is_squad_leader,
+              (ins.prn IS NOT NULL) as insured, u.undertaking_submitted
+       FROM batch_students bs
+       JOIN users u ON bs.student_id = u.id
+       LEFT JOIN insurance ins ON u.prn = ins.prn
+       WHERE bs.batch_id = $1${whereExtra}
+       ORDER BY u.name ASC
+       LIMIT $${paramIdx} OFFSET $${paramIdx + 1}`,
+      [...params, limit, offset]
+    );
+
+    res.json({
+      students: withLtcId(dataRes.rows),
+      pagination: { total, page, limit, pages: Math.ceil(total / limit) }
+    });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// Add students to batch (by PRN/email matching from master DB)
+app.post('/api/admin/batches/:id/students', authMiddleware(['admin']), async (req, res) => {
+  const { id } = req.params;
+  const { identifiers, matchType } = req.body; // identifiers: array of prn or email
+  if (!Array.isArray(identifiers) || identifiers.length === 0) {
+    return res.status(400).json({ message: 'identifiers must be a non-empty array' });
+  }
+  try {
+    // Verify batch exists
+    const batchCheck = await pool.query("SELECT id FROM batches WHERE id = $1", [id]);
+    if (batchCheck.rowCount === 0) return res.status(404).json({ message: 'Batch not found' });
+
+    const column = matchType === 'prn' ? 'prn' : 'email';
+    const matchRes = await pool.query(
+      `SELECT id, name, email FROM users WHERE role = 'student' AND ${column} = ANY($1)`,
+      [identifiers]
+    );
+
+    let added = 0;
+    let skipped = 0;
+    const errors = [];
+
+    for (const student of matchRes.rows) {
+      try {
+        const checkBatch = await pool.query(
+          `SELECT b.name FROM batch_students bs
+           JOIN batches b ON bs.batch_id = b.id
+           WHERE bs.student_id = $1 AND bs.batch_id <> $2 AND (b.is_deleted = false OR b.is_deleted IS NULL)
+           LIMIT 1`,
+          [student.id, id]
+        );
+        if (checkBatch.rowCount > 0) {
+          skipped++;
+          errors.push({ email: student.email, error: `Student is already allocated to active batch: ${checkBatch.rows[0].name}` });
+          continue;
+        }
+
+        const barcode = `LTC-${id}-${student.id}-${Math.floor(Math.random() * 10000)}`;
+        await pool.query(
+          `INSERT INTO batch_students (batch_id, student_id, barcode)
+           VALUES ($1, $2, $3)
+           ON CONFLICT (batch_id, student_id) DO NOTHING`,
+          [id, student.id, barcode]
+        );
+        added++;
+      } catch (e) {
+        skipped++;
+        errors.push({ email: student.email, error: e.message });
+      }
+    }
+
+    // Also send emails to newly added students
+    for (const student of matchRes.rows) {
+      sendLtcBatchEmail(student.name, student.email);
+    }
+
+    res.json({
+      message: `Added ${added} students to batch. ${skipped} skipped (already in batch).`,
+      matched: matchRes.rowCount,
+      added,
+      skipped,
+      unmatched: identifiers.length - matchRes.rowCount,
+      errors
+    });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// Remove student from batch (NOT from master DB)
+app.delete('/api/admin/batches/:id/students/:studentId', authMiddleware(['admin']), async (req, res) => {
+  const { id, studentId } = req.params;
+  try {
+    await pool.query("DELETE FROM batch_students WHERE batch_id = $1 AND student_id = $2", [id, studentId]);
+    res.json({ message: 'Student removed from batch. Master record preserved.' });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// Add single student to batch
+app.post('/api/admin/batches/:id/students/add-one', authMiddleware(['admin']), async (req, res) => {
+  const { id } = req.params;
+  const { student_id } = req.body;
+  try {
+    const studentRes = await pool.query("SELECT id, name, email FROM users WHERE id = $1 AND role = 'student'", [student_id]);
+    if (studentRes.rowCount === 0) return res.status(404).json({ message: 'Student not found' });
+    const student = studentRes.rows[0];
+    const checkBatch = await pool.query(
+      `SELECT b.name FROM batch_students bs
+       JOIN batches b ON bs.batch_id = b.id
+       WHERE bs.student_id = $1 AND bs.batch_id <> $2 AND (b.is_deleted = false OR b.is_deleted IS NULL)
+       LIMIT 1`,
+      [student_id, id]
+    );
+    if (checkBatch.rowCount > 0) {
+      return res.status(400).json({ message: `Student is already allocated to active batch: ${checkBatch.rows[0].name}` });
+    }
+
+    const barcode = `LTC-${id}-${student_id}-${Math.floor(Math.random() * 10000)}`;
+    await pool.query(
+      `INSERT INTO batch_students (batch_id, student_id, barcode) VALUES ($1, $2, $3) ON CONFLICT (batch_id, student_id) DO NOTHING`,
+      [id, student_id, barcode]
+    );
+    res.json({ message: 'Student added to batch.' });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// ── Batch Faculty ─────────────────────────────────────────────────────────────
+
+// Get faculty in a batch
+app.get('/api/admin/batches/:id/faculty', authMiddleware(['admin']), async (req, res) => {
+  const { id } = req.params;
+  const search = req.query.search || '';
+  try {
+    let whereExtra = '';
+    const params = [parseInt(id)];
+    if (search) {
+      whereExtra = ` AND (u.name ILIKE $2 OR u.email ILIKE $2 OR u.department ILIKE $2)`;
+      params.push(`%${search}%`);
+    }
+    const result = await pool.query(
+      `SELECT u.id, u.name, u.email, u.department, u.division, u.school, u.panel, u.is_primary, u.gender, u.phone,
+              bf.squad
+       FROM batch_faculty bf
+       JOIN users u ON bf.faculty_id = u.id
+       WHERE bf.batch_id = $1${whereExtra}
+       ORDER BY u.name ASC`,
+      params
+    );
+    res.json({ faculty: result.rows });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// Add faculty to batch
+app.post('/api/admin/batches/:id/faculty', authMiddleware(['admin']), async (req, res) => {
+  const { id } = req.params;
+  const { faculty_ids } = req.body; // array of user ids
+  if (!Array.isArray(faculty_ids) || faculty_ids.length === 0) {
+    return res.status(400).json({ message: 'faculty_ids must be a non-empty array' });
+  }
+  try {
+    let added = 0;
+    for (const fid of faculty_ids) {
+      await pool.query(
+        `INSERT INTO batch_faculty (batch_id, faculty_id) VALUES ($1, $2) ON CONFLICT (batch_id, faculty_id) DO NOTHING`,
+        [id, fid]
+      );
+      added++;
+    }
+    res.json({ message: `${added} faculty assigned to batch.` });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// Remove faculty from batch (NOT from master DB)
+app.delete('/api/admin/batches/:id/faculty/:facultyId', authMiddleware(['admin']), async (req, res) => {
+  const { id, facultyId } = req.params;
+  try {
+    await pool.query("DELETE FROM batch_faculty WHERE batch_id = $1 AND faculty_id = $2", [id, facultyId]);
+    res.json({ message: 'Faculty removed from batch. Master record preserved.' });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// ── Batch Bulk Upload (auto-detect students/faculty) ──────────────────────────
+app.post('/api/admin/batches/:id/bulk-upload', authMiddleware(['admin']), async (req, res) => {
+  const { id } = req.params;
+  const { records } = req.body; // array of row objects from CSV/Excel
+
+  if (!Array.isArray(records) || records.length === 0) {
+    return res.status(400).json({ message: 'records must be a non-empty array' });
+  }
+
+  try {
+    // Verify batch
+    const batchCheck = await pool.query("SELECT id FROM batches WHERE id = $1", [id]);
+    if (batchCheck.rowCount === 0) return res.status(404).json({ message: 'Batch not found' });
+
+    const studentsAdded = [];
+    const facultyAdded = [];
+    const errors = [];
+    const notFound = [];
+
+    for (const row of records) {
+      const normalized = {};
+      for (const key in row) {
+        const cleanKey = key.replace(/^\uFEFF/, '').toLowerCase().trim();
+        normalized[cleanKey] = row[key];
+      }
+
+      const prn = String(normalized.prn || normalized['student id'] || normalized.student_id || '').trim();
+      const email = String(normalized.email || '').trim().toLowerCase();
+      const facultyId = String(normalized.faculty_id || normalized['faculty id'] || '').trim();
+      const role = String(normalized.role || '').toLowerCase().trim();
+
+      // Determine if faculty or student
+      const isFaculty = role === 'faculty' || (!prn && facultyId);
+      const isStudent = role === 'student' || prn;
+
+      if (isFaculty) {
+        // Try matching faculty by faculty_id or email
+        let matchQuery = null;
+        if (facultyId) {
+          matchQuery = await pool.query("SELECT id, name, email FROM users WHERE role='faculty' AND faculty_id=$1", [facultyId]);
+        }
+        if ((!matchQuery || matchQuery.rowCount === 0) && email) {
+          matchQuery = await pool.query("SELECT id, name, email FROM users WHERE role='faculty' AND email=$1", [email]);
+        }
+        if (matchQuery && matchQuery.rowCount > 0) {
+          const faculty = matchQuery.rows[0];
+          try {
+            await pool.query(
+              `INSERT INTO batch_faculty (batch_id, faculty_id) VALUES ($1, $2) ON CONFLICT (batch_id, faculty_id) DO NOTHING`,
+              [id, faculty.id]
+            );
+            facultyAdded.push(faculty.email);
+          } catch (e) {
+            errors.push({ row: email || facultyId, error: e.message });
+          }
+        } else {
+          notFound.push({ row: email || facultyId, type: 'faculty' });
+        }
+      } else if (isStudent) {
+        // Try matching student by PRN or email
+        let matchQuery = null;
+        if (prn) {
+          matchQuery = await pool.query("SELECT id, name, email FROM users WHERE role='student' AND prn=$1", [prn]);
+        }
+        if ((!matchQuery || matchQuery.rowCount === 0) && email) {
+          matchQuery = await pool.query("SELECT id, name, email FROM users WHERE role='student' AND email=$1", [email]);
+        }
+
+        let student = null;
+        if (matchQuery && matchQuery.rowCount > 0) {
+          student = matchQuery.rows[0];
+        } else if (prn) {
+          // Auto-create student in master DB if not found (upsert)
+          try {
+            const defaultPass = 'student123';
+            const hashed = await bcrypt.hash(defaultPass, 10);
+            const studentName = String(normalized.name || normalized.full_name || normalized.student_name || 'Student PRN ' + prn).trim();
+            const studentEmail = email || `student_${prn}@ltc.edu`;
+            const semester = normalized.semester || normalized.year || null;
+            const department = normalized.department || null;
+            const division = normalized.division || null;
+            const school = normalized.school || null;
+            const gender = normalized.gender || null;
+
+            const insertRes = await pool.query(
+              `INSERT INTO users (name, email, password, role, prn, semester, department, division, school, gender)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id, name, email`,
+              [studentName, studentEmail, hashed, 'student', prn, semester, department, division, school, gender]
+            );
+            student = insertRes.rows[0];
+            writeAudit(req.user.id, req.user.name || 'Admin', 'STUDENT_AUTO_CREATED', 'user', student.id, { prn, email: studentEmail });
+          } catch (e) {
+            errors.push({ row: email || prn, error: 'Failed to auto-create student: ' + e.message });
+          }
+        }
+
+        if (student) {
+          try {
+            const checkBatch = await pool.query(
+              `SELECT b.name FROM batch_students bs
+               JOIN batches b ON bs.batch_id = b.id
+               WHERE bs.student_id = $1 AND bs.batch_id <> $2 AND (b.is_deleted = false OR b.is_deleted IS NULL)
+               LIMIT 1`,
+              [student.id, id]
+            );
+            if (checkBatch.rowCount > 0) {
+              errors.push({ row: email || prn, error: `Student is already allocated to active batch: ${checkBatch.rows[0].name}` });
+              continue;
+            }
+
+            const barcode = `LTC-${id}-${student.id}-${Math.floor(Math.random() * 10000)}`;
+            const squad = null; // Squad must remain NULL/Unassigned during bulk upload
+            const room = normalized.room || null;
+            await pool.query(
+              `INSERT INTO batch_students (batch_id, student_id, barcode, squad, room) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (batch_id, student_id) DO NOTHING`,
+              [id, student.id, barcode, squad, room]
+            );
+            studentsAdded.push(student.email);
+          } catch (e) {
+            errors.push({ row: email || prn, error: e.message });
+          }
+        } else {
+          notFound.push({ row: email || prn, type: 'student' });
+        }
+      }
+    }
+
+    res.json({
+      message: `Processed ${records.length} records. Added ${studentsAdded.length} students and ${facultyAdded.length} faculty.`,
+      studentsAdded: studentsAdded.length,
+      facultyAdded: facultyAdded.length,
+      notFound: notFound.length,
+      notFoundList: notFound,
+      errors
+    });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// ── Batch Squad Allocation ────────────────────────────────────────────────────
+
+// Get squad allocation state for a batch
+app.get('/api/admin/batches/:id/squads', authMiddleware(['admin']), async (req, res) => {
+  const { id } = req.params;
+  try {
+    const lockKey = `batch_${id}_squads_locked`;
+    const lockCheck = await pool.query("SELECT value FROM system_settings WHERE key = $1", [lockKey]);
+    const isLocked = lockCheck.rowCount > 0 && lockCheck.rows[0].value === 'true';
+
+    const studentsRes = await pool.query(
+      `SELECT u.id, u.name, u.email, u.gender, u.prn, bs.squad, bs.room, bs.barcode, bs.is_squad_leader
+       FROM batch_students bs
+       JOIN users u ON bs.student_id = u.id
+       WHERE bs.batch_id = $1
+       ORDER BY bs.squad ASC, u.name ASC`,
+      [id]
+    );
+
+    const facultyRes = await pool.query(
+      `SELECT u.id, u.name, u.email, u.department, bf.squad
+       FROM batch_faculty bf
+       JOIN users u ON bf.faculty_id = u.id
+       WHERE bf.batch_id = $1
+       ORDER BY bf.squad ASC, u.name ASC`,
+      [id]
+    );
+
+    res.json({
+      locked: isLocked,
+      students: studentsRes.rows,
+      faculty: facultyRes.rows,
+      squadNames: SQUAD_NAMES
+    });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// Auto-allocate squads for a batch
+app.post('/api/admin/batches/:id/auto-allocate-squads', authMiddleware(['admin']), async (req, res) => {
+  const { id } = req.params;
+  try {
+    const lockKey = `batch_${id}_squads_locked`;
+    const lockCheck = await pool.query("SELECT value FROM system_settings WHERE key = $1", [lockKey]);
+    if (lockCheck.rowCount > 0 && lockCheck.rows[0].value === 'true') {
+      return res.status(400).json({ message: 'Squad allocation is locked for this batch.' });
+    }
+
+    const studentsRes = await pool.query(
+      "SELECT u.id, u.gender FROM batch_students bs JOIN users u ON bs.student_id = u.id WHERE bs.batch_id = $1",
+      [id]
+    );
+    const students = studentsRes.rows;
+    const total = students.length;
+
+    if (total === 0) return res.status(400).json({ message: 'No students in this batch.' });
+
+    // Fisher-Yates shuffle
+    const shuffle = (arr) => {
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
+    };
+
+    const girls = shuffle(students.filter(s => {
+      const g = s.gender ? s.gender.trim().toLowerCase() : '';
+      return g === 'female' || g === 'f';
+    }));
+    const boys = shuffle(students.filter(s => {
+      const g = s.gender ? s.gender.trim().toLowerCase() : '';
+      return g === 'male' || g === 'm';
+    }));
+    const others = shuffle(students.filter(s => {
+      const g = s.gender ? s.gender.trim().toLowerCase() : '';
+      return g !== 'female' && g !== 'f' && g !== 'male' && g !== 'm';
+    }));
+    const allStudents = [...girls, ...boys, ...others];
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      for (let i = 0; i < allStudents.length; i++) {
+        const squadName = SQUAD_NAMES[i % SQUAD_NAMES.length];
+        const barcode = `LTC-${id}-${allStudents[i].id}-${Math.floor(Math.random() * 10000)}`;
+        await client.query(
+          "UPDATE batch_students SET squad = $1, barcode = $2 WHERE batch_id = $3 AND student_id = $4",
+          [squadName, barcode, id, allStudents[i].id]
+        );
+      }
+
+      // Distribute faculty across squads (2 per squad)
+      const facultyRes = await client.query(
+        "SELECT u.id FROM batch_faculty bf JOIN users u ON bf.faculty_id = u.id WHERE bf.batch_id = $1",
+        [id]
+      );
+      const faculty = shuffle(facultyRes.rows);
+      for (let i = 0; i < faculty.length; i++) {
+        const squadName = i < 20 ? SQUAD_NAMES[Math.floor(i / 2)] : null;
+        await client.query(
+          "UPDATE batch_faculty SET squad = $1 WHERE batch_id = $2 AND faculty_id = $3",
+          [squadName, id, faculty[i].id]
+        );
+      }
+
+      await client.query('COMMIT');
+      res.json({ message: `Squads allocated for ${allStudents.length} students across ${SQUAD_NAMES.length} squads.` });
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// Manual squad update for a student in a batch
+app.put('/api/admin/batches/:id/student-squad', authMiddleware(['admin']), async (req, res) => {
+  const { id } = req.params;
+  const { student_id, squad } = req.body;
+  try {
+    await pool.query(
+      "UPDATE batch_students SET squad = $1 WHERE batch_id = $2 AND student_id = $3",
+      [squad, id, student_id]
+    );
+    res.json({ message: 'Squad updated.' });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// Lock/unlock squad allocation for a batch
+app.post('/api/admin/batches/:id/lock-squads', authMiddleware(['admin']), async (req, res) => {
+  const { id } = req.params;
+  const { locked } = req.body;
+  try {
+    const lockKey = `batch_${id}_squads_locked`;
+    await pool.query(
+      `INSERT INTO system_settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
+      [lockKey, locked ? 'true' : 'false']
+    );
+    res.json({ message: `Squad allocation ${locked ? 'locked' : 'unlocked'}.` });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// EXISTING / LEGACY ROUTES (preserved for backward compatibility)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Faculty Dashboard
 app.get('/api/faculty/dashboard', authMiddleware(['faculty']), async (req, res) => {
   try {
-    const panels = (req.user.panel || '').split(',').map((p) => p.trim()).filter(Boolean);
-    let myStudents;
-    if (panels.length > 0) {
-      myStudents = await pool.query(
-        "SELECT id, name, email, semester, department, panel, nri, red_flag FROM users WHERE role = 'student' AND panel = ANY($1)",
-        [panels]
-      );
-    } else {
-      myStudents = await pool.query(
-        "SELECT id, name, email, semester, department, panel, nri, red_flag FROM users WHERE role = 'student' AND department = $1",
-        [req.user.department]
-      );
-    }
-
-    // Fetch the faculty's complete profile
-    const facultyUser = await pool.query(
-      "SELECT id, name, email, role, department, division, school, panel, squad FROM users WHERE id = $1",
+    const activeBatchRes = await pool.query(
+      `SELECT bf.batch_id, bf.squad, b.name as batch_name
+       FROM batch_faculty bf
+       JOIN batches b ON bf.batch_id = b.id
+       WHERE bf.faculty_id = $1 AND (b.is_deleted = false OR b.is_deleted IS NULL)
+       ORDER BY bf.batch_id DESC LIMIT 1`,
       [req.user.id]
     );
-    
-    let squadLeader = null;
-    let squadStudents = [];
+    const activeBatchId = activeBatchRes.rowCount > 0 ? activeBatchRes.rows[0].batch_id : null;
+    const squadName = activeBatchRes.rowCount > 0 ? activeBatchRes.rows[0].squad : null;
+
+    const facultyUser = await pool.query(
+      "SELECT id, name, email, role, department, division, school, panel FROM users WHERE id = $1",
+      [req.user.id]
+    );
     const facultyInfo = facultyUser.rows[0];
-    const squadName = facultyInfo?.squad;
-    
-    if (squadName) {
-      const leaderRes = await pool.query("SELECT * FROM squad_leaders WHERE squad_name = $1", [squadName]);
-      if (leaderRes.rowCount > 0) squadLeader = leaderRes.rows[0];
-      
-      const squadStudentsRes = await pool.query(
-        "SELECT id, name, email, semester, department, panel, nri, red_flag, gender, prn, phone FROM users WHERE role = 'student' AND squad = $1",
-        [squadName]
-      );
-      squadStudents = squadStudentsRes.rows;
+    if (facultyInfo) {
+      facultyInfo.squad = squadName || null;
     }
 
-    res.json({ 
-      message: 'Welcome Faculty', 
-      data: myStudents.rows, 
-      facultyInfo, 
-      squadLeader, 
-      squadStudents 
+    let squadLeader = null;
+    let squadStudents = [];
+    let myStudentsRows = [];
+
+    if (activeBatchId && squadName) {
+      // Fetch squad students from the active batch
+      const squadStudentsRes = await pool.query(
+        `SELECT u.id, u.name, u.email, u.semester, u.department, u.panel, u.nri, u.red_flag, u.gender, u.prn, u.phone,
+                bs.squad, bs.room, bs.barcode
+         FROM users u
+         JOIN batch_students bs ON u.id = bs.student_id
+         WHERE u.role = 'student' AND bs.batch_id = $1 AND bs.squad = $2`,
+        [activeBatchId, squadName]
+      );
+      squadStudents = squadStudentsRes.rows;
+      myStudentsRows = squadStudents; // restrict active students panel list to squad students
+
+      // Fetch squad leader
+      const leaderRes = await pool.query(
+        `SELECT u.name, u.email, u.prn, u.phone
+         FROM batch_students bs
+         JOIN users u ON bs.student_id = u.id
+         WHERE bs.batch_id = $1 AND bs.squad = $2 AND bs.is_squad_leader = true
+         LIMIT 1`,
+        [activeBatchId, squadName]
+      );
+      if (leaderRes.rowCount > 0) {
+        squadLeader = leaderRes.rows[0];
+      } else {
+        const legacyLeaderRes = await pool.query("SELECT * FROM squad_leaders WHERE squad_name = $1", [squadName]);
+        if (legacyLeaderRes.rowCount > 0) squadLeader = legacyLeaderRes.rows[0];
+      }
+    } else {
+      // Fallback/legacy behavior if not allocated to a squad in any active batch
+      const panels = (req.user.panel || '').split(',').map(p => p.trim()).filter(Boolean);
+      let myStudents;
+      if (panels.length > 0) {
+        myStudents = await pool.query(
+          "SELECT id, name, email, semester, department, panel, nri, red_flag, prn FROM users WHERE role = 'student' AND panel = ANY($1)",
+          [panels]
+        );
+      } else {
+        myStudents = await pool.query(
+          "SELECT id, name, email, semester, department, panel, nri, red_flag, prn FROM users WHERE role = 'student' AND department = $1",
+          [req.user.department]
+        );
+      }
+      myStudentsRows = myStudents.rows;
+    }
+
+    res.json({
+      message: 'Welcome Faculty',
+      data: withLtcId(myStudentsRows),
+      facultyInfo,
+      squadLeader,
+      squadStudents: withLtcId(squadStudents)
     });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
@@ -488,25 +1367,44 @@ app.post('/api/faculty/toggle-red-flag', authMiddleware(['faculty']), async (req
   }
 });
 
-// Student Dashboard Route
+// Student Dashboard
 app.get('/api/student/dashboard', authMiddleware(['student']), async (req, res) => {
   try {
     const myData = await pool.query(
       `SELECT u.id, u.name, u.email, u.semester, u.department, u.prn, u.red_flag,
               u.in_current_batch, u.undertaking_submitted, u.undertaking_signed_name, u.undertaking_signed_date,
-              (i.prn IS NOT NULL) as insured, i.policy_number, i.provider
+              (i.prn IS NOT NULL) as insured, i.policy_number, i.provider,
+              bs.batch_id, bs.squad, bs.room
        FROM users u
        LEFT JOIN insurance i ON u.prn = i.prn
+       LEFT JOIN batch_students bs ON u.id = bs.student_id AND bs.batch_id = (
+         SELECT bs2.batch_id FROM batch_students bs2
+         JOIN batches b2 ON bs2.batch_id = b2.id
+         WHERE bs2.student_id = u.id AND (b2.is_deleted = false OR b2.is_deleted IS NULL)
+         ORDER BY bs2.batch_id DESC LIMIT 1
+       )
        WHERE u.id = $1`,
       [req.user.id]
     );
-    res.json({ message: 'Welcome Student', data: myData.rows[0] });
+    const studentObj = myData.rows[0];
+    let squadFaculty = [];
+    if (studentObj && studentObj.batch_id && studentObj.squad) {
+      const facultyRes = await pool.query(
+        `SELECT u.name, u.email, u.department
+         FROM batch_faculty bf
+         JOIN users u ON bf.faculty_id = u.id
+         WHERE bf.batch_id = $1 AND bf.squad = $2`,
+        [studentObj.batch_id, studentObj.squad]
+      );
+      squadFaculty = facultyRes.rows;
+    }
+    res.json({ message: 'Welcome Student', data: studentObj, squadFaculty });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
 
-// Admin Dashboard Route
+// Admin Dashboard
 app.get('/api/admin/dashboard', authMiddleware(['admin']), async (req, res) => {
   try {
     const allFaculties = await pool.query("SELECT id, name, email, department FROM users WHERE role = 'faculty'");
@@ -517,11 +1415,11 @@ app.get('/api/admin/dashboard', authMiddleware(['admin']), async (req, res) => {
   }
 });
 
-// Admin Users Route
+// Admin Users (all) — used for existing tabs
 app.get('/api/admin/users', authMiddleware(['admin']), async (req, res) => {
   try {
     const allUsers = await pool.query(`
-      SELECT u.id, u.name, u.email, u.role, u.department, u.semester, 
+      SELECT u.id, u.name, u.email, u.role, u.department, u.semester,
              u.division, u.school, u.panel, u.is_primary, u.prn,
              u.squad, u.room, u.barcode, u.in_current_batch,
              u.undertaking_submitted, u.undertaking_signed_name, u.undertaking_signed_date,
@@ -542,7 +1440,7 @@ app.put('/api/admin/update-panel', authMiddleware(['admin']), async (req, res) =
   const { user_id, panel } = req.body;
   try {
     await pool.query("UPDATE users SET panel = $1 WHERE id = $2", [panel, user_id]);
-    res.json({ message: 'Panel successfully updated' });
+    res.json({ message: 'Panel updated' });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
@@ -552,21 +1450,19 @@ app.put('/api/admin/update-division', authMiddleware(['admin']), async (req, res
   const { user_id, division } = req.body;
   try {
     await pool.query("UPDATE users SET division = $1 WHERE id = $2", [division || null, user_id]);
-    res.json({ message: 'Division successfully updated' });
+    res.json({ message: 'Division updated' });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
 
-// Admin Route: Update Insurance Status
 app.put('/api/admin/insurance', authMiddleware(['admin']), async (req, res) => {
   const { user_id, insurance } = req.body;
   try {
     const userRes = await pool.query("SELECT prn FROM users WHERE id = $1", [user_id]);
     if (userRes.rowCount === 0) return res.status(404).json({ message: 'User not found' });
     const prn = userRes.rows[0].prn;
-    if (!prn) return res.status(400).json({ message: 'User has no PRN assigned. Cannot update insurance.' });
-
+    if (!prn) return res.status(400).json({ message: 'User has no PRN' });
     if (insurance) {
       await pool.query(
         "INSERT INTO insurance (prn, policy_number, provider) VALUES ($1, $2, $3) ON CONFLICT (prn) DO NOTHING",
@@ -575,62 +1471,36 @@ app.put('/api/admin/insurance', authMiddleware(['admin']), async (req, res) => {
     } else {
       await pool.query("DELETE FROM insurance WHERE prn = $1", [prn]);
     }
-    res.json({ message: 'Insurance status updated successfully' });
+    res.json({ message: 'Insurance updated' });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
 
-// Admin Route: Bulk Upload
+// Bulk Upload (global, not batch-specific)
 app.post('/api/admin/bulk-upload', authMiddleware(['admin']), async (req, res) => {
   const { users } = req.body;
-
-  if (!Array.isArray(users)) {
-    return res.status(400).json({ message: 'Users must be an array' });
-  }
-
+  if (!Array.isArray(users)) return res.status(400).json({ message: 'Users must be an array' });
   try {
     const results = [];
     const errors = [];
-
     for (const u of users) {
       try {
         let password = 'student123';
         if (u.role === 'faculty') password = 'password123';
         else if (u.role === 'ltc_member') password = 'ltc123';
         const hashedPassword = await bcrypt.hash(password, 10);
-
         await pool.query(
-          `INSERT INTO users (
-            name, email, password, role, department, semester, 
-            division, school, panel, is_primary, prn, faculty_id, 
-            phone, dob, gender, program, year, designation, status, nri
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)`,
+          `INSERT INTO users (name, email, password, role, department, semester, division, school, panel, is_primary, prn, faculty_id, phone, dob, gender, program, year, designation, status, nri)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)`,
           [
-            u.name || u.full_name,
-            u.email,
-            hashedPassword,
-            (u.role || 'student').toLowerCase(),
-            u.department || null,
-            u.semester || u.year || null,
-            u.division || null,
-            u.school || null,
+            u.name || u.full_name, u.email, hashedPassword, (u.role || 'student').toLowerCase(),
+            u.department || null, u.semester || u.year || null, u.division || null, u.school || null,
             (u.panel || '').trim().toUpperCase() || null,
             u.is_primary === 'true' || u.is_primary === true || u.role === 'primary',
-            u.prn || null,
-            u.faculty_id || null,
-            u.phone || null,
-            u.dob || null,
-            u.gender || null,
-            u.program || null,
-            u.year || u.semester || null,
-            u.designation || null,
-            u.status || 'active',
-            u.nri === true ||
-              u.nri === 1 ||
-              String(u.nri).toLowerCase().trim() === 'yes' ||
-              String(u.nri).toLowerCase().trim() === 'true' ||
-              String(u.nri).toLowerCase().trim() === '1',
+            u.prn || null, u.faculty_id || null, u.phone || null, u.dob || null, u.gender || null,
+            u.program || null, u.year || u.semester || null, u.designation || null, u.status || 'active',
+            u.nri === true || u.nri === 1 || String(u.nri).toLowerCase().trim() === 'yes' || String(u.nri).toLowerCase().trim() === 'true',
           ]
         );
         results.push(u.email);
@@ -638,102 +1508,59 @@ app.post('/api/admin/bulk-upload', authMiddleware(['admin']), async (req, res) =
         errors.push({ email: u.email, error: err.message });
       }
     }
-
     res.status(201).json({ message: `Successfully added ${results.length} users.`, results, errors });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
 
-// Admin Route: Auto Allocate Rooms and Squads
+// Auto-allocate rooms/squads (legacy)
 app.post('/api/admin/auto-allocate', authMiddleware(['admin']), async (req, res) => {
   try {
     const studentsRes = await pool.query("SELECT id, gender FROM users WHERE role = 'student'");
-    let students = studentsRes.rows;
-
-    students = students.sort(() => Math.random() - 0.5);
-
-    let currentRoomMale = 1;
-    let roomMaleCount = 0;
-
-    let currentRoomFemale = 1;
-    let roomFemaleCount = 0;
-
-    let currentRoomUnans = 1;
-    let roomUnansCount = 0;
-
-    let currentSquad = 1;
-    let squadCount = 0;
-
+    let students = studentsRes.rows.sort(() => Math.random() - 0.5);
+    let currentRoomMale = 1, roomMaleCount = 0;
+    let currentRoomFemale = 1, roomFemaleCount = 0;
+    let currentRoomUnans = 1, roomUnansCount = 0;
+    let currentSquad = 1, squadCount = 0;
     const updatePromises = [];
-
-    for (let i = 0; i < students.length; i++) {
-      const s = students[i];
-
-      if (squadCount >= 60) {
-        currentSquad++;
-        squadCount = 0;
-      }
-      const squadName = `Squad-${currentSquad}`;
+    for (const s of students) {
+      if (squadCount >= 60) { currentSquad++; squadCount = 0; }
+      const squadName = SQUAD_NAMES[(currentSquad - 1) % 10];
       squadCount++;
-
       let roomName = '';
       if (s.gender && s.gender.toLowerCase() === 'male') {
-        if (roomMaleCount >= 40) {
-          currentRoomMale++;
-          roomMaleCount = 0;
-        }
-        roomName = `M-${currentRoomMale}`;
-        roomMaleCount++;
+        if (roomMaleCount >= 40) { currentRoomMale++; roomMaleCount = 0; }
+        roomName = `M-${currentRoomMale}`; roomMaleCount++;
       } else if (s.gender && s.gender.toLowerCase() === 'female') {
-        if (roomFemaleCount >= 40) {
-          currentRoomFemale++;
-          roomFemaleCount = 0;
-        }
-        roomName = `F-${currentRoomFemale}`;
-        roomFemaleCount++;
+        if (roomFemaleCount >= 40) { currentRoomFemale++; roomFemaleCount = 0; }
+        roomName = `F-${currentRoomFemale}`; roomFemaleCount++;
       } else {
-        if (roomUnansCount >= 40) {
-          currentRoomUnans++;
-          roomUnansCount = 0;
-        }
-        roomName = `U-${currentRoomUnans}`;
-        roomUnansCount++;
+        if (roomUnansCount >= 40) { currentRoomUnans++; roomUnansCount = 0; }
+        roomName = `U-${currentRoomUnans}`; roomUnansCount++;
       }
-
       const barcode = `LTC-${s.id}-${Math.floor(Math.random() * 10000)}`;
-
       updatePromises.push(
-        pool.query("UPDATE users SET squad = $1, room = $2, barcode = $3 WHERE id = $4", [
-          squadName,
-          roomName,
-          barcode,
-          s.id,
-        ])
+        pool.query("UPDATE users SET squad = $1, room = $2, barcode = $3 WHERE id = $4", [squadName, roomName, barcode, s.id])
       );
     }
-
     await Promise.all(updatePromises);
-    res.json({ message: `Successfully allocated and generated barcodes for ${students.length} students.` });
+    res.json({ message: `Allocated ${students.length} students.` });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
 
-// Admin Route: Bulk Upload Insurance (Supports both endpoints and body shapes)
+// Bulk insurance
 const handleBulkInsurance = async (req, res) => {
   const data = req.body.users || req.body.insuranceData;
-  if (!Array.isArray(data)) {
-    return res.status(400).json({ message: 'Data must be an array of records under users or insuranceData key.' });
-  }
+  if (!Array.isArray(data)) return res.status(400).json({ message: 'Data must be an array' });
   try {
-    const results = [];
-    const errors = [];
+    const results = [], errors = [];
     for (const item of data) {
       try {
         const prn = String(item.prn || item.PRN || '').trim();
         if (!prn) throw new Error('Missing PRN');
-
         await pool.query(
           "INSERT INTO insurance (prn, policy_number, provider) VALUES ($1, $2, $3) ON CONFLICT (prn) DO UPDATE SET policy_number = EXCLUDED.policy_number, provider = EXCLUDED.provider",
           [prn, item.policy_number || item.policy || 'POLICY-BULK', item.provider || 'LTC Provider']
@@ -748,43 +1575,40 @@ const handleBulkInsurance = async (req, res) => {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 };
-
 app.post('/api/admin/bulk-insurance', authMiddleware(['admin']), handleBulkInsurance);
 app.post('/api/admin/insurance-bulk-upload', authMiddleware(['admin']), handleBulkInsurance);
 
-// Admin Route: User by Barcode
+// User by barcode
 app.get('/api/admin/user-by-barcode', authMiddleware(['admin', 'faculty', 'ltc_member']), async (req, res) => {
   const { barcode } = req.query;
   try {
     const user = await pool.query(
-      `SELECT id, name, email, role, department, division, school, panel, squad, room, barcode 
-       FROM users WHERE barcode = $1`,
+      "SELECT id, name, email, role, department, division, school, panel, squad, room, barcode FROM users WHERE barcode = $1",
       [barcode]
     );
-    if (user.rowCount === 0) return res.status(404).json({ message: 'User not found or invalid barcode.' });
+    if (user.rowCount === 0) return res.status(404).json({ message: 'User not found.' });
     res.json({ user: user.rows[0] });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
 
-// Public verify endpoint
+// Public verify
 app.get('/api/verify', async (req, res) => {
   const { barcode } = req.query;
   try {
     const user = await pool.query(
-      `SELECT id, name, email, department, squad, room, barcode 
-       FROM users WHERE barcode = $1`,
+      "SELECT id, name, email, department, squad, room, barcode FROM users WHERE barcode = $1",
       [barcode]
     );
-    if (user.rowCount === 0) return res.status(404).json({ message: 'User not found or invalid barcode.' });
+    if (user.rowCount === 0) return res.status(404).json({ message: 'User not found.' });
     res.json({ user: user.rows[0] });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
 
-// Documents Management
+// Documents
 app.post('/api/documents', authMiddleware(['admin', 'faculty']), async (req, res) => {
   const { name, url, target_role } = req.body;
   try {
@@ -798,13 +1622,25 @@ app.post('/api/documents', authMiddleware(['admin', 'faculty']), async (req, res
   }
 });
 
+app.delete('/api/documents/:id', authMiddleware(['admin']), async (req, res) => {
+  try {
+    await pool.query("DELETE FROM documents WHERE id = $1", [req.params.id]);
+    res.json({ message: 'Document deleted' });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
 app.get('/api/documents', authMiddleware(), async (req, res) => {
   try {
     let docs;
     if (req.user.role === 'admin') {
-      docs = await pool.query("SELECT * FROM documents");
+      docs = await pool.query("SELECT * FROM documents ORDER BY id DESC");
     } else {
-      docs = await pool.query("SELECT * FROM documents WHERE target_role = $1 OR target_role = 'all'", [req.user.role]);
+      docs = await pool.query(
+        "SELECT * FROM documents WHERE target_role = $1 OR target_role = 'all' ORDER BY id DESC",
+        [req.user.role]
+      );
     }
     res.json({ documents: docs.rows });
   } catch (err) {
@@ -820,7 +1656,7 @@ app.post('/api/faculty/schedule', authMiddleware(['faculty']), async (req, res) 
       "INSERT INTO schedules (title, date, time, faculty_id, panel) VALUES ($1, $2, $3, $4, $5)",
       [title, date, time, req.user.id, panel]
     );
-    res.json({ message: 'Schedule created successfully' });
+    res.json({ message: 'Schedule created' });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
@@ -830,13 +1666,11 @@ app.delete('/api/faculty/schedule/:id', authMiddleware(['faculty']), async (req,
   try {
     const { id } = req.params;
     const check = await pool.query("SELECT * FROM schedules WHERE id = $1 AND faculty_id = $2", [id, req.user.id]);
-    if (check.rowCount === 0) return res.status(403).json({ message: 'Unauthorized or schedule not found' });
-
+    if (check.rowCount === 0) return res.status(403).json({ message: 'Unauthorized' });
     await pool.query("DELETE FROM attendance WHERE schedule_id = $1", [id]);
     await pool.query("DELETE FROM evaluations WHERE schedule_id = $1", [id]);
     await pool.query("DELETE FROM schedules WHERE id = $1", [id]);
-
-    res.json({ message: 'Schedule and associated records deleted' });
+    res.json({ message: 'Schedule deleted' });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
@@ -894,10 +1728,7 @@ app.get('/api/faculty/attendance_records', authMiddleware(['admin', 'faculty']),
       att = await pool.query("SELECT * FROM attendance");
     } else {
       att = await pool.query(
-        `SELECT a.* 
-         FROM attendance a
-         JOIN schedules s ON a.schedule_id = s.id
-         WHERE s.faculty_id = $1`,
+        `SELECT a.* FROM attendance a JOIN schedules s ON a.schedule_id = s.id WHERE s.faculty_id = $1`,
         [req.user.id]
       );
     }
@@ -914,24 +1745,23 @@ app.post('/api/faculty/attendance', authMiddleware(['admin', 'faculty']), async 
       "INSERT INTO attendance (schedule_id, student_id, status) VALUES ($1, $2, $3)",
       [schedule_id, student_id, status]
     );
-    res.json({ message: 'Attendance marked successfully' });
+    res.json({ message: 'Attendance marked' });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
 
-// Assign Student Panel
 app.put('/api/faculty/assign-panel', authMiddleware(['faculty']), async (req, res) => {
   const { student_id, panel } = req.body;
   try {
     await pool.query("UPDATE users SET panel = $1 WHERE id = $2 AND role = 'student'", [panel, student_id]);
-    res.json({ message: 'Panel updated successfully' });
+    res.json({ message: 'Panel updated' });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
 
-// Student Facing API Routes
+// Student APIs
 app.get('/api/student/schedules', authMiddleware(['student']), async (req, res) => {
   try {
     const schedules = await pool.query(
@@ -947,10 +1777,7 @@ app.get('/api/student/schedules', authMiddleware(['student']), async (req, res) 
 app.get('/api/student/attendance', authMiddleware(['student']), async (req, res) => {
   try {
     const att = await pool.query(
-      `SELECT a.status, s.title, s.date 
-       FROM attendance a 
-       JOIN schedules s ON a.schedule_id = s.id 
-       WHERE a.student_id = $1`,
+      `SELECT a.status, s.title, s.date FROM attendance a JOIN schedules s ON a.schedule_id = s.id WHERE a.student_id = $1`,
       [req.user.id]
     );
     res.json({ attendance: att.rows });
@@ -962,10 +1789,7 @@ app.get('/api/student/attendance', authMiddleware(['student']), async (req, res)
 app.get('/api/student/evaluations', authMiddleware(['student']), async (req, res) => {
   try {
     const evals = await pool.query(
-      `SELECT e.*, s.title as activity_title 
-       FROM evaluations e
-       LEFT JOIN schedules s ON e.schedule_id = s.id
-       WHERE e.student_id = $1`,
+      `SELECT e.*, s.title as activity_title FROM evaluations e LEFT JOIN schedules s ON e.schedule_id = s.id WHERE e.student_id = $1`,
       [req.user.id]
     );
     res.json({ evaluations: evals.rows });
@@ -974,14 +1798,37 @@ app.get('/api/student/evaluations', authMiddleware(['student']), async (req, res
   }
 });
 
-// Profile Management
+// Profile
 app.get('/api/me', authMiddleware(), async (req, res) => {
   try {
     const user = await pool.query(
-      "SELECT id, name, email, role, department, semester, division, school, panel, is_primary FROM users WHERE id = $1",
+      `SELECT u.id, u.name, u.email, u.role, u.department, u.semester, u.division, u.school, u.panel, u.is_primary,
+              (CASE 
+                WHEN u.role = 'student' THEN (
+                  SELECT bs.squad FROM batch_students bs
+                  JOIN batches b ON bs.batch_id = b.id
+                  WHERE bs.student_id = u.id AND (b.is_deleted = false OR b.is_deleted IS NULL)
+                  ORDER BY bs.batch_id DESC LIMIT 1
+                )
+                WHEN u.role = 'faculty' THEN (
+                  SELECT bf.squad FROM batch_faculty bf
+                  JOIN batches b ON bf.batch_id = b.id
+                  WHERE bf.faculty_id = u.id AND (b.is_deleted = false OR b.is_deleted IS NULL)
+                  ORDER BY bf.batch_id DESC LIMIT 1
+                )
+                ELSE NULL
+              END) as batch_squad,
+              u.squad
+       FROM users u
+       WHERE u.id = $1`,
       [req.user.id]
     );
-    res.json({ user: user.rows[0] });
+    const userObj = user.rows[0];
+    if (userObj) {
+      userObj.squad = userObj.batch_squad || userObj.squad || null;
+      delete userObj.batch_squad;
+    }
+    res.json({ user: userObj });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
@@ -992,24 +1839,22 @@ app.put('/api/me', authMiddleware(), async (req, res) => {
   try {
     const userResult = await pool.query("SELECT * FROM users WHERE id = $1", [req.user.id]);
     const user = userResult.rows[0];
-
     if (newPassword) {
       if (!currentPassword) return res.status(400).json({ message: 'Current password is required.' });
       const isMatch = await bcrypt.compare(currentPassword, user.password);
       if (!isMatch) return res.status(400).json({ message: 'Incorrect current password.' });
-
       const hashedNew = await bcrypt.hash(newPassword, 10);
       await pool.query("UPDATE users SET name = $1, password = $2 WHERE id = $3", [name || user.name, hashedNew, req.user.id]);
     } else {
       await pool.query("UPDATE users SET name = $1 WHERE id = $2", [name || user.name, req.user.id]);
     }
-    res.json({ message: 'Profile successfully updated' });
+    res.json({ message: 'Profile updated' });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
 
-// Feedback Routes
+// Feedback
 app.post('/api/feedback', authMiddleware(['student', 'faculty', 'ltc_member']), async (req, res) => {
   const { feedback_text, category, additional_notes } = req.body;
   try {
@@ -1017,7 +1862,7 @@ app.post('/api/feedback', authMiddleware(['student', 'faculty', 'ltc_member']), 
       "INSERT INTO feedback (user_id, role, feedback_text, category, additional_notes) VALUES ($1, $2, $3, $4, $5)",
       [req.user.id, req.user.role, feedback_text, category || 'General', additional_notes || null]
     );
-    res.json({ message: 'Feedback submitted successfully' });
+    res.json({ message: 'Feedback submitted' });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
@@ -1026,16 +1871,10 @@ app.post('/api/feedback', authMiddleware(['student', 'faculty', 'ltc_member']), 
 app.get('/api/admin/feedback', authMiddleware(['admin']), async (req, res) => {
   const { user_id } = req.query;
   try {
-    let query = `SELECT f.*, u.name, u.email 
-                 FROM feedback f 
-                 JOIN users u ON f.user_id = u.id`;
-    let params = [];
-    if (user_id) {
-      query += ` WHERE f.user_id = $1`;
-      params.push(user_id);
-    }
+    let query = `SELECT f.*, u.name, u.email FROM feedback f JOIN users u ON f.user_id = u.id`;
+    const params = [];
+    if (user_id) { query += ` WHERE f.user_id = $1`; params.push(user_id); }
     query += ` ORDER BY f.created_at DESC`;
-
     const feedback = await pool.query(query, params);
     res.json({ feedback: feedback.rows });
   } catch (err) {
@@ -1043,7 +1882,48 @@ app.get('/api/admin/feedback', authMiddleware(['admin']), async (req, res) => {
   }
 });
 
-// LTC Member Dashboard & Stats API
+// Audit logs endpoint (paginated and filterable)
+app.get('/api/admin/audit-logs', authMiddleware(['admin']), async (req, res) => {
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 50;
+  const offset = (page - 1) * limit;
+  const action = req.query.action || '';
+  const search = req.query.search || '';
+
+  try {
+    let whereClause = "WHERE 1=1";
+    const params = [];
+    let paramIdx = 1;
+
+    if (action) {
+      whereClause += ` AND action = $${paramIdx}`;
+      params.push(action);
+      paramIdx++;
+    }
+    if (search) {
+      whereClause += ` AND (user_name ILIKE $${paramIdx} OR details ILIKE $${paramIdx} OR entity_type ILIKE $${paramIdx})`;
+      params.push(`%${search}%`);
+      paramIdx++;
+    }
+
+    const countRes = await pool.query(`SELECT COUNT(*) FROM audit_logs ${whereClause}`, params);
+    const total = parseInt(countRes.rows[0].count);
+
+    const dataRes = await pool.query(
+      `SELECT * FROM audit_logs ${whereClause} ORDER BY created_at DESC LIMIT $${paramIdx} OFFSET $${paramIdx + 1}`,
+      [...params, limit, offset]
+    );
+
+    res.json({
+      logs: dataRes.rows,
+      pagination: { total, page, limit, pages: Math.ceil(total / limit) }
+    });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// LTC Member Dashboard
 app.get('/api/ltc/dashboard', authMiddleware(['ltc_member']), async (req, res) => {
   try {
     const totalStudentsRes = await pool.query("SELECT COUNT(*) FROM users WHERE role = 'student'");
@@ -1051,15 +1931,11 @@ app.get('/api/ltc/dashboard', authMiddleware(['ltc_member']), async (req, res) =
     const totalRoomsRes = await pool.query("SELECT COUNT(DISTINCT room) FROM users WHERE role = 'student' AND room IS NOT NULL");
     const nriCountRes = await pool.query("SELECT COUNT(*) FROM users WHERE role = 'student' AND nri = true");
     const redFlagCountRes = await pool.query("SELECT COUNT(*) FROM users WHERE role = 'student' AND red_flag = true");
-
     const studentsRes = await pool.query(
       "SELECT id, name, email, semester, department, division, school, panel, squad, room, barcode, nri, red_flag, is_squad_leader, phone, prn, gender FROM users WHERE role = 'student' ORDER BY id ASC"
     );
-
     const docRes = await pool.query("SELECT * FROM documents WHERE target_role = 'all' OR target_role = 'faculty'");
-
     const squadLeadersRes = await pool.query("SELECT * FROM squad_leaders");
-
     res.json({
       stats: {
         totalStudents: parseInt(totalStudentsRes.rows[0].count),
@@ -1077,33 +1953,44 @@ app.get('/api/ltc/dashboard', authMiddleware(['ltc_member']), async (req, res) =
   }
 });
 
-// Update Squad Leader details API
 app.put('/api/ltc/squad-leader', authMiddleware(['ltc_member']), async (req, res) => {
   const { squadName, name, email, prn, phone } = req.body;
   try {
-    if (!squadName) {
-      return res.status(400).json({ message: 'Squad name is required.' });
-    }
+    if (!squadName) return res.status(400).json({ message: 'Squad name is required.' });
     await pool.query(
       `INSERT INTO squad_leaders (squad_name, name, email, prn, phone)
        VALUES ($1, $2, $3, $4, $5)
-       ON CONFLICT (squad_name) 
-       DO UPDATE SET 
-         name = EXCLUDED.name,
-         email = EXCLUDED.email,
-         prn = EXCLUDED.prn,
-         phone = EXCLUDED.phone`,
+       ON CONFLICT (squad_name) DO UPDATE SET name=EXCLUDED.name, email=EXCLUDED.email, prn=EXCLUDED.prn, phone=EXCLUDED.phone`,
       [squadName, name || '', email || '', prn || '', phone || '']
     );
-    res.json({ message: 'Squad leader details updated successfully.' });
+    res.json({ message: 'Squad leader updated.' });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
 
-// Admin Route: Reset Database (Wipes all data except the admin user itself)
+// Admin: Delete user
+app.delete('/api/admin/users/:id', authMiddleware(['admin']), async (req, res) => {
+  const { id } = req.params;
+  try {
+    const userRes = await pool.query("SELECT role FROM users WHERE id = $1", [id]);
+    if (userRes.rowCount === 0) return res.status(404).json({ message: 'User not found' });
+    if (userRes.rows[0].role === 'admin') return res.status(403).json({ message: 'Cannot delete admin' });
+    await pool.query("DELETE FROM batch_students WHERE student_id = $1", [id]);
+    await pool.query("DELETE FROM batch_faculty WHERE faculty_id = $1", [id]);
+    await pool.query("DELETE FROM users WHERE id = $1", [id]);
+    res.json({ message: 'User deleted from master database.' });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// Admin: Reset DB
 app.post('/api/admin/reset-database', authMiddleware(['admin']), async (req, res) => {
   try {
+    await pool.query("DELETE FROM batch_students");
+    await pool.query("DELETE FROM batch_faculty");
+    await pool.query("DELETE FROM batches");
     await pool.query("DELETE FROM users WHERE role != 'admin'");
     await pool.query("DELETE FROM schedules");
     await pool.query("DELETE FROM attendance");
@@ -1112,21 +1999,21 @@ app.post('/api/admin/reset-database', authMiddleware(['admin']), async (req, res
     await pool.query("DELETE FROM documents");
     await pool.query("DELETE FROM insurance");
     await pool.query("DELETE FROM squad_leaders");
-    res.json({ message: 'All student, faculty, and LTC member records have been successfully cleared from the database.' });
+    res.json({ message: 'Database reset. Admin account preserved.' });
   } catch (err) {
     res.status(500).json({ message: 'Failed to reset database', error: err.message });
   }
 });
 
-// Admin Route: Get Current Batch
+// Legacy current batch endpoints
 app.get('/api/admin/current-batch', authMiddleware(['admin']), async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT u.id, u.name, u.email, u.role, u.department, u.semester, 
+      `SELECT u.id, u.name, u.email, u.role, u.department, u.semester,
               u.division, u.school, u.panel, u.is_primary, u.prn,
               u.squad, u.room, u.barcode, u.in_current_batch,
               u.undertaking_submitted, u.undertaking_signed_name, u.undertaking_signed_date,
-              (i.prn IS NOT NULL) as insured, i.policy_number, i.provider
+              (i.prn IS NOT NULL) as insured
        FROM users u
        LEFT JOIN insurance i ON u.prn = i.prn
        WHERE u.role = 'student' AND u.in_current_batch = true
@@ -1138,186 +2025,136 @@ app.get('/api/admin/current-batch', authMiddleware(['admin']), async (req, res) 
   }
 });
 
-// Admin Route: Set Current Batch from bulk upload lists (PRNs or Emails)
 app.post('/api/admin/set-current-batch', authMiddleware(['admin']), async (req, res) => {
   const { identifiers, matchType } = req.body;
-  if (!Array.isArray(identifiers)) {
-    return res.status(400).json({ message: 'identifiers must be an array of strings' });
-  }
+  if (!Array.isArray(identifiers)) return res.status(400).json({ message: 'identifiers must be an array' });
   try {
     await pool.query("UPDATE users SET in_current_batch = false WHERE role = 'student'");
-
-    let matchQuery;
-    if (matchType === 'prn') {
-      matchQuery = "SELECT id, name, email FROM users WHERE role = 'student' AND prn = ANY($1)";
-    } else {
-      matchQuery = "SELECT id, name, email FROM users WHERE role = 'student' AND email = ANY($1)";
-    }
-
-    const matches = await pool.query(matchQuery, [identifiers]);
-
+    const column = matchType === 'prn' ? 'prn' : 'email';
+    const matches = await pool.query(
+      `SELECT id, name, email FROM users WHERE role = 'student' AND ${column} = ANY($1)`,
+      [identifiers]
+    );
     if (matches.rowCount > 0) {
       const matchedIds = matches.rows.map(r => r.id);
       await pool.query("UPDATE users SET in_current_batch = true WHERE id = ANY($1)", [matchedIds]);
-      
-      for (const student of matches.rows) {
-        sendLtcBatchEmail(student.name, student.email);
-      }
+      for (const student of matches.rows) sendLtcBatchEmail(student.name, student.email);
     }
-
-    res.json({
-      message: `Successfully set current LTC batch with ${matches.rowCount} students and sent notification emails.`,
-      matchedCount: matches.rowCount,
-      matchedList: matches.rows.map(r => r.prn || r.email)
-    });
+    res.json({ message: `Set ${matches.rowCount} students in current batch.`, matchedCount: matches.rowCount });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
 
-// Admin Route: Toggle student batch inclusion individually
 app.put('/api/admin/toggle-student-batch', authMiddleware(['admin']), async (req, res) => {
   const { user_id, in_batch } = req.body;
   try {
     const userQuery = await pool.query("SELECT id, name, email, role, in_current_batch FROM users WHERE id = $1", [user_id]);
     if (userQuery.rowCount === 0) return res.status(404).json({ message: 'User not found.' });
-    
     const user = userQuery.rows[0];
-    
     if (in_batch && user.role === 'student' && !user.in_current_batch) {
       await pool.query("UPDATE users SET in_current_batch = true WHERE id = $1", [user_id]);
       sendLtcBatchEmail(user.name, user.email);
     } else {
       await pool.query("UPDATE users SET in_current_batch = $1 WHERE id = $2", [in_batch, user_id]);
     }
-    res.json({ message: 'Batch status updated successfully' });
+    res.json({ message: 'Batch status updated' });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
 
-// Admin Route: Clear Current LTC Batch
 app.post('/api/admin/clear-current-batch', authMiddleware(['admin']), async (req, res) => {
   try {
     await pool.query("UPDATE users SET in_current_batch = false WHERE role = 'student'");
-    res.json({ message: 'All students removed from current LTC batch successfully.' });
+    res.json({ message: 'Current batch cleared.' });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
 
-// Student submission: Insurance Form
+// Insurance student submission
 app.post('/api/student/submit-insurance', authMiddleware(['student']), async (req, res) => {
   const { policy_number, provider } = req.body;
-  const studentId = req.user.id;
   try {
-    const userRes = await pool.query("SELECT prn FROM users WHERE id = $1", [studentId]);
+    const userRes = await pool.query("SELECT prn FROM users WHERE id = $1", [req.user.id]);
     if (userRes.rowCount === 0) return res.status(404).json({ message: 'User not found' });
     let prn = userRes.rows[0].prn;
     if (!prn) {
-      prn = 'PRN-STU-' + studentId;
-      await pool.query("UPDATE users SET prn = $1 WHERE id = $2", [prn, studentId]);
+      prn = 'PRN-STU-' + req.user.id;
+      await pool.query("UPDATE users SET prn = $1 WHERE id = $2", [prn, req.user.id]);
     }
-
     await pool.query(
       "INSERT INTO insurance (prn, policy_number, provider) VALUES ($1, $2, $3) ON CONFLICT (prn) DO UPDATE SET policy_number = EXCLUDED.policy_number, provider = EXCLUDED.provider",
-      [prn, policy_number || 'POLICY-' + studentId, provider || 'Student Submitted']
+      [prn, policy_number || 'POLICY-' + req.user.id, provider || 'Student Submitted']
     );
-    res.json({ message: 'Insurance details submitted successfully.' });
+    res.json({ message: 'Insurance submitted.' });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
 
-// Student submission: Undertaking Form
+// Undertaking student submission
 app.post('/api/student/submit-undertaking', authMiddleware(['student']), async (req, res) => {
-  const studentId = req.user.id;
   const { signedName, signedDate } = req.body;
   try {
     await pool.query(
       "UPDATE users SET undertaking_submitted = true, undertaking_signed_name = $1, undertaking_signed_date = $2 WHERE id = $3 AND role = 'student'",
-      [signedName, signedDate, studentId]
+      [signedName, signedDate, req.user.id]
     );
-    res.json({ message: 'Undertaking submitted successfully.' });
+    res.json({ message: 'Undertaking submitted.' });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
-// Admin Route: Get Squad Allocation Details
+
+// Squad allocation (legacy)
 app.get('/api/admin/squad-allocation-state', authMiddleware(['admin']), async (req, res) => {
   try {
     const lockCheck = await pool.query("SELECT value FROM system_settings WHERE key = 'squads_locked'");
     const isLocked = lockCheck.rowCount > 0 && lockCheck.rows[0].value === 'true';
-
-    // Get current batch students
     const studentsRes = await pool.query(
       "SELECT id, name, email, gender, prn, squad, role, in_current_batch, is_squad_leader, phone FROM users WHERE role = 'student' AND in_current_batch = true ORDER BY name ASC"
     );
-
-    // Get current batch faculties
     const facultyRes = await pool.query(
       "SELECT id, name, email, department, squad, role, in_current_batch FROM users WHERE role = 'faculty' AND in_current_batch = true ORDER BY name ASC"
     );
-
     const squadLeadersRes = await pool.query("SELECT * FROM squad_leaders");
-
-    res.json({
-      locked: isLocked,
-      students: studentsRes.rows,
-      faculties: facultyRes.rows,
-      squadLeaders: squadLeadersRes.rows
-    });
+    res.json({ locked: isLocked, students: studentsRes.rows, faculties: facultyRes.rows, squadLeaders: squadLeadersRes.rows });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
 
-// Admin Route: Lock Squad Allocation
 app.post('/api/admin/lock-squads', authMiddleware(['admin']), async (req, res) => {
   try {
-    await pool.query(
-      "INSERT INTO system_settings (key, value) VALUES ('squads_locked', 'true') ON CONFLICT (key) DO UPDATE SET value = 'true'"
-    );
-    res.json({ message: 'Squad allocation has been locked successfully.' });
+    await pool.query("INSERT INTO system_settings (key, value) VALUES ('squads_locked', 'true') ON CONFLICT (key) DO UPDATE SET value = 'true'");
+    res.json({ message: 'Squad allocation locked.' });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
 
-// Admin Route: Unlock Squad Allocation
 app.post('/api/admin/unlock-squads', authMiddleware(['admin']), async (req, res) => {
   try {
-    await pool.query(
-      "INSERT INTO system_settings (key, value) VALUES ('squads_locked', 'false') ON CONFLICT (key) DO UPDATE SET value = 'false'"
-    );
-    res.json({ message: 'Squad allocation has been unlocked successfully.' });
+    await pool.query("INSERT INTO system_settings (key, value) VALUES ('squads_locked', 'false') ON CONFLICT (key) DO UPDATE SET value = 'false'");
+    res.json({ message: 'Squad allocation unlocked.' });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
 
-// Admin Route: Shuffle Squads
 app.post('/api/admin/shuffle-squads', authMiddleware(['admin']), async (req, res) => {
   try {
     const lockCheck = await pool.query("SELECT value FROM system_settings WHERE key = 'squads_locked'");
-    const isLocked = lockCheck.rowCount > 0 && lockCheck.rows[0].value === 'true';
-    if (isLocked) {
-      return res.status(400).json({ message: 'Squad allocation is locked and cannot be reshuffled.' });
+    if (lockCheck.rowCount > 0 && lockCheck.rows[0].value === 'true') {
+      return res.status(400).json({ message: 'Squad allocation is locked.' });
     }
-
-    const studentsRes = await pool.query(
-      "SELECT id, name, email, gender, role FROM users WHERE role = 'student' AND in_current_batch = true"
-    );
+    const studentsRes = await pool.query("SELECT id, name, email, gender FROM users WHERE role = 'student' AND in_current_batch = true");
     const students = studentsRes.rows;
-
-    const facultyRes = await pool.query(
-      "SELECT id, name, email, role FROM users WHERE role = 'faculty' AND in_current_batch = true"
-    );
+    const facultyRes = await pool.query("SELECT id FROM users WHERE role = 'faculty' AND in_current_batch = true");
     const faculties = facultyRes.rows;
 
-    const squadNames = ['Surya', 'Aditya', 'Ravi', 'Divakar', 'Mitra', 'Martand', 'Dinkar', 'Prabhakar', 'Bhaskar', 'Tejonidhi'];
-
-    // Fisher-Yates Shuffle
     const shuffle = (array) => {
       for (let i = array.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
@@ -1325,51 +2162,39 @@ app.post('/api/admin/shuffle-squads', authMiddleware(['admin']), async (req, res
       }
     };
 
-    // Separate girls and others
-    const girls = students.filter(s => s.gender && s.gender.toLowerCase() === 'female');
-    const others = students.filter(s => !s.gender || s.gender.toLowerCase() !== 'female');
-
-    shuffle(girls);
-    shuffle(others);
+    const girls = students.filter(s => {
+      const g = s.gender ? s.gender.trim().toLowerCase() : '';
+      return g === 'female' || g === 'f';
+    });
+    const boys = students.filter(s => {
+      const g = s.gender ? s.gender.trim().toLowerCase() : '';
+      return g === 'male' || g === 'm';
+    });
+    const others = students.filter(s => {
+      const g = s.gender ? s.gender.trim().toLowerCase() : '';
+      return g !== 'female' && g !== 'f' && g !== 'male' && g !== 'm';
+    });
+    shuffle(girls); shuffle(boys); shuffle(others);
+    const allStudents = [...girls, ...boys, ...others];
 
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
-
-      // Clear squads for students and faculty not in the current active batch
       await client.query("UPDATE users SET squad = NULL WHERE in_current_batch = false OR in_current_batch IS NULL");
 
-      // Distribute girls
-      for (let idx = 0; idx < girls.length; idx++) {
-        const squad = squadNames[idx % 10];
-        await client.query("UPDATE users SET squad = $1 WHERE id = $2", [squad, girls[idx].id]);
+      for (let idx = 0; idx < allStudents.length; idx++) {
+        await client.query("UPDATE users SET squad = $1 WHERE id = $2", [SQUAD_NAMES[idx % SQUAD_NAMES.length], allStudents[idx].id]);
       }
 
-      // Distribute others starting from idx = girls.length
-      const startIdx = girls.length;
-      for (let idx = 0; idx < others.length; idx++) {
-        const squad = squadNames[(startIdx + idx) % 10];
-        await client.query("UPDATE users SET squad = $1 WHERE id = $2", [squad, others[idx].id]);
-      }
-
-      // Handle faculty distribution
-      // Clear squads for all faculty members first
       await client.query("UPDATE users SET squad = NULL WHERE role = 'faculty'");
-
       shuffle(faculties);
       for (let idx = 0; idx < faculties.length; idx++) {
         if (idx < 20) {
-          const squadIdx = Math.floor(idx / 2);
-          const squad = squadNames[squadIdx];
-          await client.query("UPDATE users SET squad = $1 WHERE id = $2", [squad, faculties[idx].id]);
-        } else {
-          // Any extra faculties above 20 remain unassigned (squad = NULL)
-          await client.query("UPDATE users SET squad = NULL WHERE id = $1", [faculties[idx].id]);
+          await client.query("UPDATE users SET squad = $1 WHERE id = $2", [SQUAD_NAMES[Math.floor(idx / 2)], faculties[idx].id]);
         }
       }
-
       await client.query('COMMIT');
-      res.json({ message: 'Squad allocation completed successfully.' });
+      res.json({ message: 'Squad allocation completed.' });
     } catch (err) {
       await client.query('ROLLBACK');
       throw err;

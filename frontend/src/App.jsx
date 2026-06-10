@@ -81,6 +81,8 @@ function ScrollToTopOnRoute() {
 export default function App() {
   const [showSplash, setShowSplash] = useState(window.location.pathname === '/')
   const [fadeOut, setFadeOut] = useState(false)
+  const [deferredPrompt, setDeferredPrompt] = useState(null)
+  const [showInstallBtn, setShowInstallBtn] = useState(false)
 
   useEffect(() => {
     if (!showSplash) return
@@ -93,6 +95,27 @@ export default function App() {
     }, 1500)
     return () => clearTimeout(timer)
   }, [showSplash])
+
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setShowInstallBtn(true);
+    };
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      console.log('User accepted install prompt');
+    }
+    setDeferredPrompt(null);
+    setShowInstallBtn(false);
+  };
 
   return (
     <>
@@ -143,6 +166,38 @@ export default function App() {
           </ErrorBoundary>
         </div>
       </BrowserRouter>
+
+      {showInstallBtn && (
+        <div style={{
+          position: 'fixed',
+          bottom: '24px',
+          right: '24px',
+          background: 'var(--primary)',
+          color: 'white',
+          padding: '12px 20px',
+          borderRadius: '50px',
+          boxShadow: '0 10px 25px rgba(37,99,235,0.3)',
+          zIndex: 9999,
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          fontSize: '13.5px',
+          fontWeight: '700',
+          cursor: 'pointer',
+          border: '1.5px solid rgba(255,255,255,0.2)',
+          transition: 'all 0.2s ease',
+          animation: 'bounceInstall 2s infinite'
+        }} onClick={handleInstallClick}>
+          <span>Install LTC App</span>
+          <button style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: 'white', borderRadius: '50%', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: 'bold' }} onClick={(e) => { e.stopPropagation(); setShowInstallBtn(false); }}>✕</button>
+        </div>
+      )}
+      <style>{`
+        @keyframes bounceInstall {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-6px); }
+        }
+      `}</style>
     </>
   )
 }

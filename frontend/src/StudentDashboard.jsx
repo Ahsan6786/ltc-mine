@@ -1,13 +1,32 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Calendar, ClipboardList, PenTool, LayoutDashboard, Flag, Search, LogOut, MessageSquare, Bell, Menu, Clock } from 'lucide-react'
+import { Calendar, ClipboardList, PenTool, LayoutDashboard, Flag, Search, LogOut, MessageSquare, Bell, Menu, Clock, RefreshCw, Sparkles, Rocket, ChevronRight, Sun } from 'lucide-react'
 import ScrollToTop from './ScrollToTop'
 import TimetablePanel from './TimetablePanel'
 
+const SQUAD_COLORS = {
+  Surya: '#f59e0b', Chandra: '#8b5cf6', Mangal: '#ef4444', Budh: '#10b981',
+  Guru: '#f97316', Shukra: '#ec4899', Shani: '#64748b', Rahu: '#1e293b',
+  Ketu: '#06b6d4', Agni: '#dc2626'
+}
+
+const MUTED_SQUAD_COLORS = {
+  Surya: '#9f6e4a',    // Soft brownish / terracotta
+  Chandra: '#5f4b8b',  // Soft muted purple
+  Mangal: '#a64f4f',   // Muted soft red
+  Budh: '#2d6a4f',     // Soft forest green
+  Guru: '#b27a37',     // Soft ochre/bronze
+  Shukra: '#b05c7e',   // Soft muted rose
+  Shani: '#4a5568',    // Soft slate gray
+  Rahu: '#2b3a67',     // Soft indigo/navy
+  Ketu: '#2a7b7b',     // Soft muted teal/cyan
+  Agni: '#a35246'      // Soft burnt sienna
+}
 
 export default function StudentDashboard() {
   const [activeTab, setActiveTab] = useState('dashboard')
   const [myData, setMyData] = useState({})
+  const [squadFaculty, setSquadFaculty] = useState([])
   const [schedules, setSchedules] = useState([])
   const [attendance, setAttendance] = useState([])
   const [evaluations, setEvaluations] = useState([])
@@ -15,6 +34,8 @@ export default function StudentDashboard() {
   const [feedbackText, setFeedbackText] = useState('')
   const [feedbackCategory, setFeedbackCategory] = useState('General')
   const [additionalNotes, setAdditionalNotes] = useState('')
+  const [showReveal, setShowReveal] = useState(false)
+  const [revealStep, setRevealStep] = useState(1)
   
   const filteredSchedules = schedules.filter(s => 
     s.title.toLowerCase().includes(scheduleSearch.toLowerCase()) || 
@@ -180,10 +201,6 @@ export default function StudentDashboard() {
       return
     }
     fetchDashboardData()
-
-    // Poll for updates every 10 seconds
-    const interval = setInterval(fetchDashboardData, 10000)
-    return () => clearInterval(interval)
   }, [])
 
   const fetchDashboardData = async () => {
@@ -196,7 +213,20 @@ export default function StudentDashboard() {
         return
       }
       const data = await res.json()
-      if (res.ok) setMyData(data.data || {})
+      if (res.ok) {
+        setMyData(data.data || {})
+        setSquadFaculty(data.squadFaculty || [])
+        
+        const mySquad = data.data?.squad;
+        const studentId = currentUser?.id;
+        if (mySquad && mySquad !== 'Not Assigned Yet' && studentId) {
+          const key = `ltc_squad_revealed_${studentId}`;
+          const alreadyRevealed = localStorage.getItem(key);
+          if (alreadyRevealed !== 'true') {
+            setShowReveal(true);
+          }
+        }
+      }
 
       const schedRes = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5001'}/api/student/schedules`, { headers: { 'Authorization': `Bearer ${token}` } })
       const schedData = await schedRes.json()
@@ -462,7 +492,7 @@ export default function StudentDashboard() {
             {renderNotifications()}
           </div>
         )}
-        <div className="dashboard-header" style={{ marginBottom: '32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div className="dashboard-header" style={{ marginBottom: '32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
           <div>
             <p style={{ color: 'var(--text-muted)' }}>
               {currentUser.division ? `Division: ${currentUser.division} | ` : ''} 
@@ -471,6 +501,9 @@ export default function StudentDashboard() {
             </p>
           </div>
           <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+            <button className="btn btn-outline btn-sm" onClick={fetchDashboardData}>
+              <RefreshCw size={14} style={{ marginRight: '6px' }} /> Refresh
+            </button>
             {!isMobile && renderNotifications()}
           </div>
         </div>
@@ -480,14 +513,74 @@ export default function StudentDashboard() {
             <h2 style={{ fontSize: '20px', marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '12px' }}>
               <Flag className="text-secondary" /> Academic Profile
             </h2>
-            <div style={{ display: 'grid', gap: '16px', gridTemplateColumns: '1fr 1fr' }}>
+            <div style={{ display: 'grid', gap: '16px', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
               <div style={{ padding: '16px', border: '1px solid var(--border)', borderRadius: '8px' }}>
                 <p style={{ color: 'var(--text-muted)' }}>Name</p>
                 <h3 style={{ fontSize: '18px', marginTop: '4px' }}>{currentUser.name}</h3>
               </div>
               <div style={{ padding: '16px', border: '1px solid var(--border)', borderRadius: '8px' }}>
-                <p style={{ color: 'var(--text-muted)' }}>Panel Designation</p>
-                <h3 style={{ fontSize: '18px', color: 'var(--primary)', marginTop: '4px' }}>{currentUser.panel || 'Unassigned'}</h3>
+                <p style={{ color: 'var(--text-muted)' }}>Permanent Register Number (PRN)</p>
+                <h3 style={{ fontSize: '18px', marginTop: '4px', fontFamily: 'monospace' }}>{myData.prn || 'N/A'}</h3>
+              </div>
+              <div style={{ padding: '16px', border: '1px solid var(--border)', borderRadius: '8px' }}>
+                <p style={{ color: 'var(--text-muted)' }}>LTC ID</p>
+                <h3 style={{ fontSize: '18px', color: 'var(--primary)', marginTop: '4px', fontWeight: 'bold' }}>
+                  {myData.prn ? String(myData.prn).slice(-4) : 'N/A'}
+                </h3>
+              </div>
+              <div style={{ padding: '16px', border: '1px solid var(--border)', borderRadius: '8px', position: 'relative' }}>
+                <p style={{ color: 'var(--text-muted)' }}>Squad</p>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '4px', gap: '8px' }}>
+                  <h3 style={{ fontSize: '18px', color: SQUAD_COLORS[myData.squad] || 'var(--primary)', fontWeight: 'bold', margin: 0 }}>
+                    {myData.squad || 'Not Assigned Yet'}
+                  </h3>
+                  {myData.squad && myData.squad !== 'Not Assigned Yet' && (
+                    <button 
+                      onClick={() => { setRevealStep(1); setShowReveal(true); }} 
+                      style={{ 
+                        background: 'none', 
+                        border: 'none', 
+                        color: SQUAD_COLORS[myData.squad] || 'var(--primary)', 
+                        fontSize: '11px', 
+                        fontWeight: '750', 
+                        cursor: 'pointer', 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: '4px',
+                        padding: '2px 6px',
+                        borderRadius: '4px',
+                        transition: 'background 0.2s, opacity 0.2s'
+                      }}
+                      onMouseOver={(e) => {
+                        e.currentTarget.style.background = `${SQUAD_COLORS[myData.squad] || 'var(--primary)'}18`;
+                      }}
+                      onMouseOut={(e) => {
+                        e.currentTarget.style.background = 'none';
+                      }}
+                      title="Replay reveal animation"
+                    >
+                      <RefreshCw size={11} /> Replay Reveal
+                    </button>
+                  )}
+                </div>
+              </div>
+              <div style={{ padding: '16px', border: '1px solid var(--border)', borderRadius: '8px' }}>
+                <p style={{ color: 'var(--text-muted)' }}>Allocated Squad Faculty</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '6px' }}>
+                  {squadFaculty.length > 0 ? (
+                    squadFaculty.map((f, idx) => (
+                      <div key={idx} style={{ fontSize: '13px', color: 'var(--text-main)', borderBottom: idx < squadFaculty.length - 1 ? '1px solid var(--border)' : 'none', paddingBottom: idx < squadFaculty.length - 1 ? '6px' : '0' }}>
+                        <strong style={{ display: 'block', fontSize: '14px' }}>{f.name}</strong>
+                        <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '11.5px', marginTop: '2px', fontFamily: 'monospace' }}>{f.email}</span>
+                        {f.department && (
+                          <span style={{ color: 'var(--primary)', display: 'block', fontSize: '11px', fontWeight: '600', marginTop: '2px' }}>Dept: {f.department}</span>
+                        )}
+                      </div>
+                    ))
+                  ) : (
+                    <span style={{ color: 'var(--text-muted)', fontSize: '13px', fontStyle: 'italic' }}>No Faculty assigned yet</span>
+                  )}
+                </div>
               </div>
               <div style={{ padding: '16px', border: '1px solid var(--border)', borderRadius: '8px' }}>
                 <p style={{ color: 'var(--text-muted)' }}>Semester</p>
@@ -624,6 +717,72 @@ export default function StudentDashboard() {
         )}
 
       </div>
+
+      {showReveal && myData.squad && myData.squad !== 'Not Assigned Yet' && (
+        <div 
+          className="squad-reveal-overlay" 
+          style={{ backgroundColor: revealStep === 1 ? '#15803d' : '#eb8213' }}
+        >
+          {/* Top spacer for justify-content space-between */}
+          <div style={{ height: '10px' }} />
+
+          {revealStep === 1 ? (
+            /* Slide 1: Welcome & Intro */
+            <div className="squad-reveal-content-wrapper" key="step-1">
+              <div className="squad-reveal-icon-container">
+                <Rocket size={40} color="#ffffff" />
+              </div>
+              
+              <h1 className="squad-reveal-title">
+                Welcome, {currentUser.name}.
+              </h1>
+
+              <p className="squad-reveal-description">
+                Your onboarding is complete. Ready to discover your assigned squad and team details?
+              </p>
+
+              <button 
+                className="squad-reveal-btn-pill" 
+                onClick={() => setRevealStep(2)}
+              >
+                FIND MY SQUAD <ChevronRight size={18} />
+              </button>
+            </div>
+          ) : (
+            /* Slide 2: Squad Reveal */
+            <div className="squad-reveal-content-wrapper" key="step-2">
+              <div className="squad-reveal-icon-container">
+                <Sun size={40} color="#ffffff" />
+              </div>
+              
+              <h1 className="squad-reveal-title">
+                Your squad is {myData.squad}.
+              </h1>
+
+              <p className="squad-reveal-description">
+                You have been allocated to squad {myData.squad}. Get ready to collaborate with your team for the 5-day LTC Immersion Phase!
+              </p>
+
+              <button 
+                className="squad-reveal-btn-pill" 
+                onClick={() => {
+                  setShowReveal(false);
+                  localStorage.setItem(`ltc_squad_revealed_${currentUser.id}`, 'true');
+                }}
+              >
+                ENTER DASHBOARD <ChevronRight size={18} />
+              </button>
+            </div>
+          )}
+
+          {/* Indicators at the bottom */}
+          <div className="squad-reveal-indicators">
+            <div className={`indicator ${revealStep === 1 ? 'active' : ''}`} />
+            <div className={`indicator ${revealStep === 2 ? 'active' : ''}`} />
+          </div>
+        </div>
+      )}
+
       <ScrollToTop />
     </div>
   )
