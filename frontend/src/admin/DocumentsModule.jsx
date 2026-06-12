@@ -64,53 +64,63 @@ export default function DocumentsModule({
           </form>
         </div>
 
-        <div className="glass-card">
-          <h3 style={{ fontSize: 17, fontWeight: 800, marginBottom: 16 }}>Uploaded Documents ({documents.length})</h3>
-          <div className="table-wrapper">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Target</th>
-                  <th>Link</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {documents.length === 0 ? (
-                  <tr>
-                    <td colSpan={4}>
-                      <div className="empty-state" style={{ padding: '32px 0' }}>
-                        <FileText size={36} />
-                        <p>No documents uploaded.</p>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <h3 style={{ fontSize: 17, fontWeight: 800, margin: '4px 0 0 0' }}>Uploaded Documents ({documents.length})</h3>
+          
+          {documents.length === 0 ? (
+            <div className="glass-card">
+              <div className="empty-state" style={{ padding: '40px 0' }}>
+                <FileText size={36} />
+                <p>No documents uploaded yet.</p>
+              </div>
+            </div>
+          ) : (
+            <div className="documents-grid">
+              {documents.map(d => (
+                <div key={d.id} className="doc-card">
+                  <div className="doc-card-header">
+                    <div className="doc-icon-wrapper">
+                      <FileText size={20} />
+                    </div>
+                    <div className="doc-card-title-block">
+                      <h4 className="doc-card-title" title={d.name}>{d.name}</h4>
+                      <div className="doc-card-target">
+                        <span className={`badge ${
+                          d.target_role === 'all' ? 'badge-blue' :
+                          d.target_role === 'student' ? 'badge-green' :
+                          d.target_role === 'faculty' ? 'badge-primary' : 'badge-orange'
+                        }`}>
+                          {d.target_role === 'all' ? 'Visible to All' :
+                           d.target_role === 'student' ? 'Students Only' :
+                           d.target_role === 'faculty' ? 'Faculty Only' : 'LTC Members'}
+                        </span>
                       </div>
-                    </td>
-                  </tr>
-                ) : (
-                  documents.map(d => (
-                    <tr key={d.id}>
-                      <td><div style={{ fontWeight: 700 }}>{d.name}</div></td>
-                      <td><span className="badge badge-blue">{d.target_role}</span></td>
-                      <td>
-                        <a href={d.url} target="_blank" rel="noreferrer" style={{ color: 'var(--primary)', fontWeight: 600, fontSize: 13 }}>
-                          View ↗
-                        </a>
-                      </td>
-                      <td>
-                        <button
-                          className="btn btn-outline btn-sm"
-                          style={{ borderColor: 'var(--danger)', color: 'var(--danger)' }}
-                          onClick={() => handleDeleteDocument(d.id)}
-                        >
-                          <Trash2 size={12} />
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+                    </div>
+                  </div>
+                  
+                  <div className="doc-card-footer">
+                    <a
+                      href={d.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="btn btn-sm btn-outline"
+                      style={{ padding: '6px 12px', fontSize: '12px' }}
+                    >
+                      Open Link ↗
+                    </a>
+                    
+                    <button
+                      className="btn-action-icon btn-del-icon"
+                      onClick={() => handleDeleteDocument(d.id)}
+                      title="Delete Document"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

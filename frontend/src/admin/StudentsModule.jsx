@@ -46,8 +46,8 @@ export default function StudentsModule({
       </div>
 
       <div className="glass-card">
-        <div style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
-          <div className="search-wrapper" style={{ margin: 0, flex: 2, minWidth: 240 }}>
+        <div className="students-filters-row">
+          <div className="search-wrapper">
             <Search className="search-icon" size={16} />
             <input
               className="input-field"
@@ -58,14 +58,13 @@ export default function StudentsModule({
             />
           </div>
           <select
-            className="input-field"
+            className="input-field filter-select"
             value={selectedSchool}
             onChange={e => {
               setSelectedSchool(e.target.value)
               setSelectedDepartment('')
               setSelectedDivision('')
             }}
-            style={{ marginBottom: 0, width: 'auto', minWidth: 140, borderRadius: 50, fontSize: 13 }}
           >
             <option value="">All Schools</option>
             {availableSchools.map(s => (
@@ -73,13 +72,12 @@ export default function StudentsModule({
             ))}
           </select>
           <select
-            className="input-field"
+            className="input-field filter-select"
             value={selectedDepartment}
             onChange={e => {
               setSelectedDepartment(e.target.value)
               setSelectedDivision('')
             }}
-            style={{ marginBottom: 0, width: 'auto', minWidth: 140, borderRadius: 50, fontSize: 13 }}
           >
             <option value="">All Depts</option>
             {availableDepartments.map(d => (
@@ -87,10 +85,9 @@ export default function StudentsModule({
             ))}
           </select>
           <select
-            className="input-field"
+            className="input-field filter-select panel-select"
             value={selectedPanel}
             onChange={e => setSelectedPanel(e.target.value)}
-            style={{ marginBottom: 0, width: 'auto', minWidth: 120, borderRadius: 50, fontSize: 13 }}
           >
             <option value="">All Panels</option>
             {availablePanels.map(p => (

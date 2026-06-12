@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { GraduationCap, Calendar, CheckSquare, FileText, Activity, LayoutDashboard, ClipboardList, PenTool, Search, LogOut, MessageSquare, Users, Bell, Menu, Clock, RefreshCw } from 'lucide-react'
+import { GraduationCap, Calendar, CheckSquare, FileText, Activity, LayoutDashboard, ClipboardList, PenTool, Search, LogOut, MessageSquare, Users, Bell, Menu, Clock, RefreshCw, X } from 'lucide-react'
 import ScrollToTop from './ScrollToTop'
 import TimetablePanel from './TimetablePanel'
 
@@ -14,6 +14,7 @@ export default function FacultyDashboard() {
   const [facultyInfo, setFacultyInfo] = useState(null)
   const [squadLeader, setSquadLeader] = useState(null)
   const [squadStudents, setSquadStudents] = useState([])
+  const [batchFaculty, setBatchFaculty] = useState([])
 
   const [scheduleForm, setScheduleForm] = useState({ title: '', date: '', time: '', panel: 'PA' })
   const [evalForm, setEvalForm] = useState({ student_id: '', schedule_id: '', marks: '', remarks: '', marking_scheme: '' })
@@ -23,6 +24,7 @@ export default function FacultyDashboard() {
   const [savedEvals, setSavedEvals] = useState({})             // confirmed saved per studentId
   const [allEvaluations, setAllEvaluations] = useState([])     // all fetched evaluations
   const [studentSearch, setStudentSearch] = useState('')
+  const [undertakingFilter, setUndertakingFilter] = useState('all')
   const [feedbackText, setFeedbackText] = useState('')
   const [feedbackCategory, setFeedbackCategory] = useState('General')
   const [additionalNotes, setAdditionalNotes] = useState('')
@@ -130,11 +132,23 @@ export default function FacultyDashboard() {
     </div>
   )
 
-  const filteredStudents = useMemo(() => students.filter(s =>
-    s.name.toLowerCase().includes(studentSearch.toLowerCase()) ||
-    s.email.toLowerCase().includes(studentSearch.toLowerCase()) ||
-    (s.panel && s.panel.toLowerCase().includes(studentSearch.toLowerCase()))
-  ), [students, studentSearch])
+  const filteredStudents = useMemo(() => {
+    return students.filter(s => {
+      const matchesSearch = s.name.toLowerCase().includes(studentSearch.toLowerCase()) ||
+        s.email.toLowerCase().includes(studentSearch.toLowerCase()) ||
+        (s.panel && s.panel.toLowerCase().includes(studentSearch.toLowerCase()));
+      
+      if (!matchesSearch) return false;
+      
+      if (undertakingFilter === 'submitted') {
+        return s.undertaking_submitted === true;
+      }
+      if (undertakingFilter === 'pending') {
+        return !s.undertaking_submitted;
+      }
+      return true;
+    });
+  }, [students, studentSearch, undertakingFilter])
 
   const navigate = useNavigate()
   const token = localStorage.getItem('token')
@@ -217,6 +231,7 @@ export default function FacultyDashboard() {
         setFacultyInfo(data.facultyInfo || null)
         setSquadLeader(data.squadLeader || null)
         setSquadStudents(data.squadStudents || [])
+        setBatchFaculty(data.batchFaculty || [])
       }
 
       // Fetch Schedules
@@ -446,50 +461,91 @@ export default function FacultyDashboard() {
       }}>
         {/* Header */}
         <div className="sidebar-header">
-          <img src="/ltc.png" alt="LTC Logo" className="sidebar-logo" />
-          <p className="sidebar-portal-label">Faculty Portal</p>
-          <p className="sidebar-sub-label">{isPrimary ? 'Primary Faculty' : 'Secondary Faculty'}</p>
+          <div className="sidebar-brand-container">
+            <img src="/ltc.png" alt="LTC Logo" className="sidebar-brand-logo" />
+          </div>
+          {isMobile && (
+            <button className="sidebar-close-btn" onClick={() => setIsSidebarOpen(false)} aria-label="Close Sidebar">
+              <X size={14} />
+            </button>
+          )}
         </div>
 
         {/* Nav */}
         <nav className="sidebar-nav">
-          <p className="sidebar-section-label">Overview</p>
+          <span style={{ fontSize: '10px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', padding: '8px 12px 0', display: 'block' }}>faculty</span>
+          
+          <p className="sidebar-section-label" style={{ paddingTop: '8px' }}>Overview</p>
           <button className={`sidebar-item ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => { setActiveTab('dashboard'); if (isMobile) setIsSidebarOpen(false); }}>
-            <GraduationCap size={16} /> My Overview
+            <span className="sidebar-item-content">
+              <GraduationCap size={16} />
+              <span>My Overview</span>
+            </span>
           </button>
           <button className={`sidebar-item ${activeTab === 'nri' ? 'active' : ''}`} onClick={() => { setActiveTab('nri'); if (isMobile) setIsSidebarOpen(false); }}>
-            <Users size={16} /> NRI Students
+            <span className="sidebar-item-content">
+              <Users size={16} />
+              <span>NRI Students</span>
+            </span>
           </button>
           <button className={`sidebar-item ${activeTab === 'timetable' ? 'active' : ''}`} onClick={() => { setActiveTab('timetable'); if (isMobile) setIsSidebarOpen(false); }}>
-            <Clock size={16} /> Immersion Timetable
+            <span className="sidebar-item-content">
+              <Clock size={16} />
+              <span>Immersion Timetable</span>
+            </span>
           </button>
 
-          <div className="sidebar-separator" />
-          <p className="sidebar-section-label">PERFORMANCE</p>
+          <p className="sidebar-section-label">Performance</p>
           <button className={`sidebar-item ${activeTab === 'schedules' ? 'active' : ''}`} onClick={() => { setActiveTab('schedules'); if (isMobile) setIsSidebarOpen(false); }}>
-            <Calendar size={16} /> Activity Schedule
+            <span className="sidebar-item-content">
+              <Calendar size={16} />
+              <span>Activity Schedule</span>
+            </span>
           </button>
           <button className={`sidebar-item ${activeTab === 'attendance' ? 'active' : ''}`} onClick={() => { setActiveTab('attendance'); if (isMobile) setIsSidebarOpen(false); }}>
-            <ClipboardList size={16} /> My Attendance
+            <span className="sidebar-item-content">
+              <ClipboardList size={16} />
+              <span>My Attendance</span>
+            </span>
           </button>
           <button className={`sidebar-item ${activeTab === 'evaluate' ? 'active' : ''}`} onClick={() => { setActiveTab('evaluate'); if (isMobile) setIsSidebarOpen(false); }}>
-            <PenTool size={16} /> Evaluations & Marks
+            <span className="sidebar-item-content">
+              <PenTool size={16} />
+              <span>Evaluations & Marks</span>
+            </span>
           </button>
 
-          <div className="sidebar-separator" />
-          <p className="sidebar-section-label">SUPPORT</p>
+          <p className="sidebar-section-label">Support</p>
           <button className={`sidebar-item ${activeTab === 'guidelines' ? 'active' : ''}`} onClick={() => { setActiveTab('guidelines'); if (isMobile) setIsSidebarOpen(false); }}>
-            <FileText size={16} /> Docs & Guidelines
+            <span className="sidebar-item-content">
+              <FileText size={16} />
+              <span>Docs & Guidelines</span>
+            </span>
+            {unreadCount > 0 && (
+              <span className="sidebar-badge">{unreadCount}</span>
+            )}
           </button>
           <button className={`sidebar-item ${activeTab === 'feedback' ? 'active' : ''}`} onClick={() => { setActiveTab('feedback'); if (isMobile) setIsSidebarOpen(false); }}>
-            <MessageSquare size={16} /> Submit Feedback
+            <span className="sidebar-item-content">
+              <MessageSquare size={16} />
+              <span>Submit Feedback</span>
+            </span>
           </button>
         </nav>
 
         {/* Footer */}
         <div className="sidebar-footer">
-          <button className="sidebar-item logout" onClick={handleLogout}>
-            <LogOut size={16} /> Sign Out
+          <div className="sidebar-user-info">
+            <div className="sidebar-user-avatar">
+              {currentUser?.name ? currentUser.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'FC'}
+            </div>
+            <div className="sidebar-user-details">
+              <span className="sidebar-user-name">{currentUser?.name || 'Faculty Member'}</span>
+              <span className="sidebar-user-role">{isPrimary ? 'Primary Faculty' : 'Secondary Faculty'}</span>
+            </div>
+          </div>
+          <button className="sidebar-logout-btn" onClick={handleLogout} title="Sign Out" aria-label="Sign Out">
+            <LogOut size={18} />
           </button>
         </div>
       </div>
@@ -527,68 +583,72 @@ export default function FacultyDashboard() {
         {activeTab === 'dashboard' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }} className="animate-fade-in">
             {/* Overview Detail Grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1fr', gap: '20px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px' }}>
               
               {/* Faculty Profile Card */}
               <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ fontSize: '12px', fontWeight: '800', color: '#0f172a', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Faculty Profile</span>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <span style={{ fontSize: '11px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Faculty Profile</span>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                   <span style={{ fontSize: '18px', fontWeight: '800', color: '#0f172a' }}>{facultyInfo?.name || currentUser.name}</span>
                   <span style={{ fontSize: '13px', color: '#64748b', fontWeight: '500' }}>{facultyInfo?.email || currentUser.email}</span>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', borderTop: '1px solid #e2e8f0', paddingTop: '10px', marginTop: '6px', fontSize: '12.5px', color: '#0f172a', fontWeight: '600' }}>
-                    <span>Department: <span style={{ color: '#475569', fontWeight: '500' }}>{facultyInfo?.department || currentUser.department || '-'}</span></span>
-                    <span>School/Division: <span style={{ color: '#475569', fontWeight: '500' }}>{facultyInfo?.school || currentUser.school || '-'} / {facultyInfo?.division || currentUser.division || '-'}</span></span>
-                    <span>Target Panel(s): <span style={{ color: '#475569', fontWeight: '500' }}>{facultyInfo?.panel || currentUser.panel || '-'}</span></span>
-                  </div>
                 </div>
               </div>
 
               {/* Squad Details Card */}
               <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ fontSize: '12px', fontWeight: '800', color: '#475569', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Allocated Squad Details</span>
-                </div>
+                <span style={{ fontSize: '11px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Allocated Squad</span>
                 {facultyInfo?.squad ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <span style={{ fontSize: '18px', fontWeight: '800', color: '#0f172a' }}>{facultyInfo.squad}</span>
-                    <span style={{ fontSize: '13px', color: '#64748b', fontWeight: '500' }}>LTC Student Squad Allocation</span>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', borderTop: '1px solid #e2e8f0', paddingTop: '10px', marginTop: '6px', fontSize: '12.5px', color: '#0f172a', fontWeight: '600' }}>
-                      <span>Total Students: <span style={{ color: '#475569', fontWeight: '500' }}>{squadStudents.length}</span></span>
-                      <span>Gender Ratio: <span style={{ color: '#475569', fontWeight: '500' }}>F: {squadStudents.filter(s => s.gender && s.gender.toLowerCase() === 'female').length} | M: {squadStudents.length - squadStudents.filter(s => s.gender && s.gender.toLowerCase() === 'female').length}</span></span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                     <span style={{ fontSize: '18px', fontWeight: '800', color: '#0f172a' }}>{facultyInfo.squad}</span>
+                     <div style={{ display: 'flex', gap: '8px', fontSize: '12px', color: '#475569', fontWeight: '600', flexWrap: 'wrap' }}>
+                      <span>Students: {squadStudents.length}</span>
+                      <span style={{ color: '#cbd5e1' }}>|</span>
+                      <span>Ratio: F:{squadStudents.filter(s => s.gender && s.gender.toLowerCase() === 'female').length} M:{squadStudents.length - squadStudents.filter(s => s.gender && s.gender.toLowerCase() === 'female').length}</span>
                     </div>
                   </div>
                 ) : (
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
-                    <span style={{ fontSize: '13px', color: '#94a3b8', fontStyle: 'italic', fontWeight: '500' }}>
-                      No Squad allocated yet.
-                    </span>
-                  </div>
+                  <span style={{ fontSize: '13px', color: '#94a3b8', fontStyle: 'italic', fontWeight: '500' }}>No Squad allocated yet.</span>
                 )}
               </div>
 
               {/* Squad Leader Card */}
               <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ fontSize: '12px', fontWeight: '800', color: '#475569', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Designated Squad Leader</span>
-                </div>
+                <span style={{ fontSize: '11px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Squad Leader</span>
                 {squadLeader ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                     <span style={{ fontSize: '18px', fontWeight: '800', color: '#0f172a' }}>{squadLeader.name}</span>
-                    <span style={{ fontSize: '13px', color: '#64748b', fontWeight: '500' }}>{squadLeader.email}</span>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', borderTop: '1px solid #e2e8f0', paddingTop: '10px', marginTop: '6px', fontSize: '12.5px', color: '#0f172a', fontWeight: '600' }}>
-                      <span>PRN: <code style={{ color: '#0f172a', fontFamily: 'monospace' }}>{squadLeader.prn || '-'}</code></span>
-                      <span>Phone: <code style={{ color: '#0f172a', fontFamily: 'monospace' }}>{squadLeader.phone || '-'}</code></span>
-                    </div>
+                    <span style={{ fontSize: '12px', color: '#64748b', fontWeight: '500' }}>{squadLeader.email}</span>
                   </div>
                 ) : (
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', textAlign: 'center' }}>
-                    <span style={{ fontSize: '13px', color: '#94a3b8', fontStyle: 'italic', fontWeight: '500' }}>
-                      No designated Squad Leader yet.
-                    </span>
-                  </div>
+                  <span style={{ fontSize: '13px', color: '#94a3b8', fontStyle: 'italic', fontWeight: '500' }}>No squad leader assigned.</span>
                 )}
+              </div>
+
+              {/* Faculty Colleagues Card */}
+              <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '4px' }}>
+                  <span style={{ fontSize: '11px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Faculty Colleagues</span>
+                  <span style={{ background: 'rgba(59, 130, 246, 0.1)', color: '#2563eb', borderRadius: '4px', padding: '2px 6px', fontSize: '10px', fontWeight: '750' }}>{facultyInfo?.squad || 'Same Squad'}</span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '180px', overflowY: 'auto', paddingRight: '4px' }}>
+                  {batchFaculty.filter(f => f.id !== (facultyInfo?.id || currentUser?.id)).length > 0 ? (
+                    batchFaculty.filter(f => f.id !== (facultyInfo?.id || currentUser?.id)).map(colleague => {
+                      const inSameSquad = colleague.squad && colleague.squad === facultyInfo?.squad;
+                      return (
+                        <div key={colleague.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 8px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #f1f5f9' }}>
+                          <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: inSameSquad ? 'linear-gradient(135deg, var(--primary-light) 0%, var(--primary-dark) 100%)' : '#e2e8f0', color: inSameSquad ? '#ffffff' : '#475569', fontSize: '10px', fontWeight: '700', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            {colleague.name ? colleague.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'FC'}
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                            <span style={{ fontSize: '12.5px', fontWeight: '600', color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{colleague.name}</span>
+                          </div>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <span style={{ fontSize: '13px', color: '#94a3b8', fontStyle: 'italic', fontWeight: '500', textAlign: 'center', display: 'block', paddingTop: '10px' }}>No other squad faculty.</span>
+                  )}
+                </div>
               </div>
 
             </div>
@@ -604,20 +664,35 @@ export default function FacultyDashboard() {
                 </button>
               </div>
 
-              <div className="search-wrapper">
-                <Search className="search-icon" size={20} />
-                <input
-                  type="text"
-                  placeholder="Search students..."
-                  className="input-field"
-                  value={studentSearch}
-                  onChange={(e) => setStudentSearch(e.target.value)}
-                />
+              <div style={{ display: 'flex', gap: '12px', marginBottom: '20px', flexDirection: isMobile ? 'column' : 'row' }}>
+                <div className="search-wrapper" style={{ flex: 1, margin: 0 }}>
+                  <Search className="search-icon" size={20} />
+                  <input
+                    type="text"
+                    placeholder="Search students..."
+                    className="input-field"
+                    style={{ margin: 0 }}
+                    value={studentSearch}
+                    onChange={(e) => setStudentSearch(e.target.value)}
+                  />
+                </div>
+                <div style={{ minWidth: '220px' }}>
+                  <select
+                    className="input-field"
+                    style={{ margin: 0, height: '100%', cursor: 'pointer', outline: 'none' }}
+                    value={undertakingFilter}
+                    onChange={(e) => setUndertakingFilter(e.target.value)}
+                  >
+                    <option value="all">All Undertaking Status</option>
+                    <option value="submitted">Undertaking Submitted</option>
+                    <option value="pending">Undertaking Pending</option>
+                  </select>
+                </div>
               </div>
 
               <div style={{ overflowX: 'auto' }}>
                 <table className="data-table">
-                  <thead><tr><th>PRN / LTC ID</th><th>Name</th><th>Email</th><th>Type</th><th>Actions</th></tr></thead>
+                  <thead><tr><th>PRN / LTC ID</th><th>Name</th><th>Email</th><th>Type</th><th>Undertaking</th><th>Actions</th></tr></thead>
                   <tbody>
                     {filteredStudents.map(s => {
                       const isNri = s.nri === true || s.nri === 1 || String(s.nri).toLowerCase() === 'true' || String(s.nri).toLowerCase() === 'yes'
@@ -647,6 +722,24 @@ export default function FacultyDashboard() {
                             }
                           </td>
                           <td>
+                            {s.undertaking_submitted ? (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                <span style={{ background: '#d1fae5', color: '#065f46', borderRadius: '4px', padding: '2px 8px', fontSize: '11px', fontWeight: '700', alignSelf: 'flex-start' }}>
+                                  Submitted
+                                </span>
+                                {s.undertaking_signed_date && (
+                                  <span style={{ fontSize: '10px', color: '#64748b', fontFamily: 'monospace' }}>
+                                    {s.undertaking_signed_date}
+                                  </span>
+                                )}
+                              </div>
+                            ) : (
+                              <span style={{ background: '#fee2e2', color: '#991b1b', borderRadius: '4px', padding: '2px 8px', fontSize: '11px', fontWeight: '700', alignSelf: 'flex-start' }}>
+                                Pending
+                              </span>
+                            )}
+                          </td>
+                          <td>
                             <button
                               className="btn btn-outline"
                               style={{ padding: '4px 8px', fontSize: '11px', borderColor: s.red_flag ? '#e53e3e' : 'var(--border)', color: s.red_flag ? '#e53e3e' : 'var(--text-main)' }}
@@ -658,7 +751,7 @@ export default function FacultyDashboard() {
                         </tr>
                       )
                     })}
-                    {students.length === 0 && <tr><td colSpan="5" style={{ textAlign: 'center' }}>No students found.</td></tr>}
+                    {students.length === 0 && <tr><td colSpan="6" style={{ textAlign: 'center' }}>No students found.</td></tr>}
                   </tbody>
                 </table>
               </div>

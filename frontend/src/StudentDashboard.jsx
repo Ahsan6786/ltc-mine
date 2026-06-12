@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Calendar, ClipboardList, PenTool, LayoutDashboard, Flag, Search, LogOut, MessageSquare, Bell, Menu, Clock, RefreshCw, Sparkles, Rocket, ChevronRight, Sun } from 'lucide-react'
+import { Calendar, ClipboardList, PenTool, LayoutDashboard, Flag, Search, LogOut, MessageSquare, Bell, Menu, Clock, RefreshCw, Sparkles, Rocket, ChevronRight, Sun, X, FileText } from 'lucide-react'
 import ScrollToTop from './ScrollToTop'
 import TimetablePanel from './TimetablePanel'
 
@@ -36,6 +36,11 @@ export default function StudentDashboard() {
   const [additionalNotes, setAdditionalNotes] = useState('')
   const [showReveal, setShowReveal] = useState(false)
   const [revealStep, setRevealStep] = useState(1)
+  const [undertakingForm, setUndertakingForm] = useState({
+    signedName: '',
+    signedDate: new Date().toISOString().split('T')[0]
+  })
+  const [submittingUndertaking, setSubmittingUndertaking] = useState(false)
   
   const filteredSchedules = schedules.filter(s => 
     s.title.toLowerCase().includes(scheduleSearch.toLowerCase()) || 
@@ -126,6 +131,105 @@ export default function StudentDashboard() {
     } catch (err) {
       alert('Failed to submit feedback.')
     }
+  }
+
+  const handleSubmitUndertaking = async (e) => {
+    e.preventDefault()
+    if (!undertakingForm.signedName.trim()) return alert('Please type your full name to sign the undertaking.')
+    setSubmittingUndertaking(true)
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5001'}/api/student/submit-undertaking`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify(undertakingForm)
+      })
+      if (res.ok) {
+        alert('Undertaking signed and submitted successfully!')
+        fetchDashboardData()
+      } else {
+        alert('Failed to submit undertaking.')
+      }
+    } catch (err) {
+      alert('Error submitting undertaking.')
+    } finally {
+      setSubmittingUndertaking(false)
+    }
+  }
+
+  const handlePrintUndertaking = () => {
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>LTC Participant Undertaking</title>
+          <style>
+            body { font-family: system-ui, -apple-system, sans-serif; padding: 40px; color: #0f172a; background: #ffffff; }
+            .document { border: 2px solid #0f172a; border-radius: 16px; padding: 40px; max-width: 700px; margin: 0 auto; background: #ffffff; }
+            .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #0f172a; padding-bottom: 20px; }
+            .logo { height: 60px; margin-bottom: 12px; }
+            h2 { font-size: 22px; margin: 0; text-transform: uppercase; letter-spacing: 1px; }
+            .subtitle { font-size: 13px; color: #64748b; margin-top: 6px; }
+            .receipt { display: flex; flex-direction: column; align-items: center; gap: 20px; text-align: center; padding: 20px; }
+            .checkmark { font-size: 24px; color: #10b981; font-weight: bold; }
+            .details-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; text-align: left; width: 100%; margin-top: 20px; border: 1px dashed #cbd5e1; padding: 20px; border-radius: 12px; background: #f8fafc; }
+            .label { font-size: 10px; color: #64748b; text-transform: uppercase; font-weight: 700; }
+            .value { font-size: 14px; font-weight: 800; color: #0f172a; margin: 4px 0 0 0; }
+            .sig { font-family: Georgia, serif; font-style: italic; font-size: 16px; }
+            .code-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; font-size: 13.5px; color: #334155; line-height: 1.6; text-align: left; margin-bottom: 20px; }
+            ol { margin: 0; padding-left: 20px; }
+            li { margin-bottom: 8px; }
+          </style>
+        </head>
+        <body>
+          <div class="document">
+            <div class="header">
+              <h2>LTC Participant Undertaking</h2>
+              <div class="subtitle">Official Immersion Honor Code & Agreement</div>
+            </div>
+            
+            <div class="code-box">
+              <p style="margin: 0 0 10px 0; font-weight: bold; color: #0f172a;">LTC Honor Code & Conduct Policy</p>
+              <p style="margin: 0 0 10px 0;">As a student representing my institution and participating in the Life Transformation Centre (LTC) program, I solemnly declare that:</p>
+              <ol>
+                <li>I will maintain <strong>100% attendance</strong> across all schedules, timetable activities, and physical sessions unless officially excused.</li>
+                <li>I will actively engage and collaborate with my designated <strong>Squad Leader</strong> and <strong>Squad Faculty</strong> for all tasks and evaluation milestones.</li>
+                <li>I will adhere to the official guidelines, timings, and code of conduct set by the LTC administration. Any breach of discipline is subject to warning/red flag actions.</li>
+                <li>I understand that any violation of the code of conduct may lead to immediate disciplinary action, including suspension from the program.</li>
+              </ol>
+            </div>
+
+            <div class="receipt">
+              <div class="checkmark">✓ SIGNED UNDERTAKING RECORD</div>
+              <div class="details-grid">
+                <div>
+                  <div class="label">Signed Signature</div>
+                  <div class="value sig">${myData.undertaking_signed_name}</div>
+                </div>
+                <div>
+                  <div class="label">Permanent Register Number (PRN)</div>
+                  <div class="value" style="font-family: monospace;">${myData.prn}</div>
+                </div>
+                <div>
+                  <div class="label">Submission Date</div>
+                  <div class="value">${myData.undertaking_signed_date}</div>
+                </div>
+                <div>
+                  <div class="label">Verification Status</div>
+                  <div class="value" style="color: #10b981;">Verified Record</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <script>
+            window.onload = function() {
+              window.print();
+              setTimeout(() => { window.close(); }, 500);
+            }
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
   }
 
   const renderNotifications = () => (
@@ -437,44 +541,90 @@ export default function StudentDashboard() {
       }}>
         {/* Header */}
         <div className="sidebar-header">
-          <img src="/ltc.png" alt="LTC Logo" className="sidebar-logo" />
-          <p className="sidebar-portal-label">Student Portal</p>
-          <p className="sidebar-sub-label">{currentUser?.panel ? `Panel ${currentUser.panel}` : 'Student'}</p>
+          <div className="sidebar-brand-container">
+            <img src="/ltc.png" alt="LTC Logo" className="sidebar-brand-logo" />
+          </div>
+          {isMobile && (
+            <button className="sidebar-close-btn" onClick={() => setIsSidebarOpen(false)} aria-label="Close Sidebar">
+              <X size={14} />
+            </button>
+          )}
         </div>
 
         {/* Nav */}
         <nav className="sidebar-nav">
-          <p className="sidebar-section-label">My Space</p>
+          <span style={{ fontSize: '10px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', padding: '8px 12px 0', display: 'block' }}>student</span>
+          
+          <p className="sidebar-section-label" style={{ paddingTop: '8px' }}>My Space</p>
           <button className={`sidebar-item ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => { setActiveTab('dashboard'); if (isMobile) setIsSidebarOpen(false); }}>
-            <Flag size={16} /> My Overview
+            <span className="sidebar-item-content">
+              <Flag size={16} />
+              <span>My Overview</span>
+            </span>
           </button>
           <button className={`sidebar-item ${activeTab === 'schedules' ? 'active' : ''}`} onClick={() => { setActiveTab('schedules'); if (isMobile) setIsSidebarOpen(false); }}>
-            <Calendar size={16} /> Activity Schedule
+            <span className="sidebar-item-content">
+              <Calendar size={16} />
+              <span>Activity Schedule</span>
+            </span>
+            {unreadCount > 0 && (
+              <span className="sidebar-badge">{unreadCount}</span>
+            )}
           </button>
           <button className={`sidebar-item ${activeTab === 'timetable' ? 'active' : ''}`} onClick={() => { setActiveTab('timetable'); if (isMobile) setIsSidebarOpen(false); }}>
-            <Clock size={16} /> Immersion Timetable
+            <span className="sidebar-item-content">
+              <Clock size={16} />
+              <span>Immersion Timetable</span>
+            </span>
+          </button>
+          <button className={`sidebar-item ${activeTab === 'undertaking' ? 'active' : ''}`} onClick={() => { setActiveTab('undertaking'); if (isMobile) setIsSidebarOpen(false); }}>
+            <span className="sidebar-item-content">
+              <FileText size={16} />
+              <span>Undertaking Form</span>
+            </span>
+            {!myData.undertaking_submitted && (
+              <span className="sidebar-badge" style={{ background: '#ef4444', color: '#ffffff' }}>Pending</span>
+            )}
           </button>
 
           <div className="sidebar-separator" />
           <p className="sidebar-section-label">Performance</p>
           <button className={`sidebar-item ${activeTab === 'attendance' ? 'active' : ''}`} onClick={() => { setActiveTab('attendance'); if (isMobile) setIsSidebarOpen(false); }}>
-            <ClipboardList size={16} /> My Attendance
+            <span className="sidebar-item-content">
+              <ClipboardList size={16} />
+              <span>My Attendance</span>
+            </span>
           </button>
           <button className={`sidebar-item ${activeTab === 'evaluations' ? 'active' : ''}`} onClick={() => { setActiveTab('evaluations'); if (isMobile) setIsSidebarOpen(false); }}>
-            <PenTool size={16} /> Evaluations & Marks
+            <span className="sidebar-item-content">
+              <PenTool size={16} />
+              <span>Evaluations & Marks</span>
+            </span>
           </button>
 
           <div className="sidebar-separator" />
           <p className="sidebar-section-label">Support</p>
           <button className={`sidebar-item ${activeTab === 'feedback' ? 'active' : ''}`} onClick={() => { setActiveTab('feedback'); if (isMobile) setIsSidebarOpen(false); }}>
-            <MessageSquare size={16} /> Submit Feedback
+            <span className="sidebar-item-content">
+              <MessageSquare size={16} />
+              <span>Submit Feedback</span>
+            </span>
           </button>
         </nav>
 
         {/* Footer */}
         <div className="sidebar-footer">
-          <button className="sidebar-item logout" onClick={handleLogout}>
-            <LogOut size={16} /> Sign Out
+          <div className="sidebar-user-info">
+            <div className="sidebar-user-avatar">
+              {currentUser?.name ? currentUser.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'ST'}
+            </div>
+            <div className="sidebar-user-details">
+              <span className="sidebar-user-name">{currentUser?.name || 'Student'}</span>
+              <span className="sidebar-user-role">Student</span>
+            </div>
+          </div>
+          <button className="sidebar-logout-btn" onClick={handleLogout} title="Sign Out" aria-label="Sign Out">
+            <LogOut size={18} />
           </button>
         </div>
       </div>
@@ -509,84 +659,191 @@ export default function StudentDashboard() {
         </div>
 
         {activeTab === 'dashboard' && (
-          <div className="glass-card animate-fade-in">
-            <h2 style={{ fontSize: '20px', marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <Flag className="text-secondary" /> Academic Profile
-            </h2>
-            <div style={{ display: 'grid', gap: '16px', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
-              <div style={{ padding: '16px', border: '1px solid var(--border)', borderRadius: '8px' }}>
-                <p style={{ color: 'var(--text-muted)' }}>Name</p>
-                <h3 style={{ fontSize: '18px', marginTop: '4px' }}>{currentUser.name}</h3>
-              </div>
-              <div style={{ padding: '16px', border: '1px solid var(--border)', borderRadius: '8px' }}>
-                <p style={{ color: 'var(--text-muted)' }}>Permanent Register Number (PRN)</p>
-                <h3 style={{ fontSize: '18px', marginTop: '4px', fontFamily: 'monospace' }}>{myData.prn || 'N/A'}</h3>
-              </div>
-              <div style={{ padding: '16px', border: '1px solid var(--border)', borderRadius: '8px' }}>
-                <p style={{ color: 'var(--text-muted)' }}>LTC ID</p>
-                <h3 style={{ fontSize: '18px', color: 'var(--primary)', marginTop: '4px', fontWeight: 'bold' }}>
-                  {myData.prn ? String(myData.prn).slice(-4) : 'N/A'}
-                </h3>
-              </div>
-              <div style={{ padding: '16px', border: '1px solid var(--border)', borderRadius: '8px', position: 'relative' }}>
-                <p style={{ color: 'var(--text-muted)' }}>Squad</p>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '4px', gap: '8px' }}>
-                  <h3 style={{ fontSize: '18px', color: SQUAD_COLORS[myData.squad] || 'var(--primary)', fontWeight: 'bold', margin: 0 }}>
-                    {myData.squad || 'Not Assigned Yet'}
-                  </h3>
-                  {myData.squad && myData.squad !== 'Not Assigned Yet' && (
-                    <button 
-                      onClick={() => { setRevealStep(1); setShowReveal(true); }} 
-                      style={{ 
-                        background: 'none', 
-                        border: 'none', 
-                        color: SQUAD_COLORS[myData.squad] || 'var(--primary)', 
-                        fontSize: '11px', 
-                        fontWeight: '750', 
-                        cursor: 'pointer', 
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        gap: '4px',
-                        padding: '2px 6px',
-                        borderRadius: '4px',
-                        transition: 'background 0.2s, opacity 0.2s'
-                      }}
-                      onMouseOver={(e) => {
-                        e.currentTarget.style.background = `${SQUAD_COLORS[myData.squad] || 'var(--primary)'}18`;
-                      }}
-                      onMouseOut={(e) => {
-                        e.currentTarget.style.background = 'none';
-                      }}
-                      title="Replay reveal animation"
-                    >
-                      <RefreshCw size={11} /> Replay Reveal
-                    </button>
-                  )}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }} className="animate-fade-in">
+            {/* Overview Detail Grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px' }}>
+              
+              {/* Student Profile Card */}
+              <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <span style={{ fontSize: '11px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Academic Profile</span>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <span style={{ fontSize: '18px', fontWeight: '800', color: '#0f172a' }}>{currentUser.name}</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', borderTop: '1px solid #e2e8f0', paddingTop: '10px', marginTop: '6px', fontSize: '12.5px', color: '#0f172a', fontWeight: '600' }}>
+                    <span>PRN: <span style={{ color: '#475569', fontWeight: '500', fontFamily: 'monospace' }}>{myData.prn || 'N/A'}</span></span>
+                    <span>LTC ID: <span style={{ color: 'var(--primary)', fontWeight: '750' }}>{myData.prn ? String(myData.prn).slice(-4) : 'N/A'}</span></span>
+                    <span>Semester: <span style={{ color: '#475569', fontWeight: '500' }}>{myData.semester || 'N/A'}</span></span>
+                  </div>
                 </div>
               </div>
-              <div style={{ padding: '16px', border: '1px solid var(--border)', borderRadius: '8px' }}>
-                <p style={{ color: 'var(--text-muted)' }}>Allocated Squad Faculty</p>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '6px' }}>
+
+              {/* Squad Details Card */}
+              <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <span style={{ fontSize: '11px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Allocated Squad</span>
+                {myData.squad ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <span style={{ fontSize: '18px', fontWeight: '800', color: SQUAD_COLORS[myData.squad] || '#0f172a' }}>{myData.squad}</span>
+                    {myData.squad && myData.squad !== 'Not Assigned Yet' && (
+                      <button 
+                        onClick={() => { setRevealStep(1); setShowReveal(true); }} 
+                        style={{ 
+                          background: 'rgba(59, 130, 246, 0.06)', 
+                          border: 'none', 
+                          color: SQUAD_COLORS[myData.squad] || 'var(--primary)', 
+                          fontSize: '11px', 
+                          fontWeight: '750', 
+                          cursor: 'pointer', 
+                          alignSelf: 'flex-start',
+                          padding: '4px 10px',
+                          borderRadius: '8px',
+                          transition: 'background 0.2s',
+                          marginTop: '6px'
+                        }}
+                        onMouseOver={(e) => {
+                          e.currentTarget.style.background = `rgba(59, 130, 246, 0.12)`;
+                        }}
+                        onMouseOut={(e) => {
+                          e.currentTarget.style.background = 'rgba(59, 130, 246, 0.06)';
+                        }}
+                        title="Replay reveal animation"
+                      >
+                        <RefreshCw size={11} style={{ marginRight: '4px' }} /> Replay Reveal
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <span style={{ fontSize: '13px', color: '#94a3b8', fontStyle: 'italic', fontWeight: '500' }}>No Squad allocated yet.</span>
+                )}
+              </div>
+
+              {/* Squad Faculty Card */}
+              <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <span style={{ fontSize: '11px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Allocated Squad Faculty</span>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '180px', overflowY: 'auto', paddingRight: '4px' }}>
                   {squadFaculty.length > 0 ? (
                     squadFaculty.map((f, idx) => (
-                      <div key={idx} style={{ fontSize: '13px', color: 'var(--text-main)', borderBottom: idx < squadFaculty.length - 1 ? '1px solid var(--border)' : 'none', paddingBottom: idx < squadFaculty.length - 1 ? '6px' : '0' }}>
-                        <strong style={{ display: 'block', fontSize: '14px' }}>{f.name}</strong>
-                        <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '11.5px', marginTop: '2px', fontFamily: 'monospace' }}>{f.email}</span>
-                        {f.department && (
-                          <span style={{ color: 'var(--primary)', display: 'block', fontSize: '11px', fontWeight: '600', marginTop: '2px' }}>Dept: {f.department}</span>
-                        )}
+                      <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 8px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #f1f5f9' }}>
+                        <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: 'linear-gradient(135deg, var(--primary-light) 0%, var(--primary-dark) 100%)', color: '#ffffff', fontSize: '10px', fontWeight: '700', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          {f.name ? f.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'FC'}
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                          <span style={{ fontSize: '12.5px', fontWeight: '600', color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{f.name}</span>
+                          <span style={{ fontSize: '10.5px', color: '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{f.email}</span>
+                        </div>
                       </div>
                     ))
                   ) : (
-                    <span style={{ color: 'var(--text-muted)', fontSize: '13px', fontStyle: 'italic' }}>No Faculty assigned yet</span>
+                    <span style={{ fontSize: '13px', color: '#94a3b8', fontStyle: 'italic', fontWeight: '500', textAlign: 'center', display: 'block', paddingTop: '10px' }}>No Faculty assigned.</span>
                   )}
                 </div>
               </div>
-              <div style={{ padding: '16px', border: '1px solid var(--border)', borderRadius: '8px' }}>
-                <p style={{ color: 'var(--text-muted)' }}>Semester</p>
-                <h3 style={{ fontSize: '18px', marginTop: '4px' }}>{myData.semester || 'N/A'}</h3>
-              </div>
+
             </div>
+          </div>
+        )}
+
+        {activeTab === 'undertaking' && (
+          <div className="glass-card animate-fade-in" style={{ maxWidth: '750px', margin: '0 auto', padding: isMobile ? '20px' : '40px', background: '#ffffff', borderRadius: '16px', boxShadow: 'var(--shadow-md)', border: '1px solid #e2e8f0' }}>
+            <div style={{ textAlign: 'center', marginBottom: '30px', borderBottom: '2px solid #0f172a', paddingBottom: '20px' }}>
+              <img src="/ltc.png" alt="LTC Logo" style={{ height: '60px', objectFit: 'contain', marginBottom: '12px' }} />
+              <h2 style={{ fontSize: '24px', fontWeight: '800', color: '#0f172a', margin: 0, textTransform: 'uppercase', letterSpacing: '1px' }}>LTC Participant Undertaking</h2>
+              <p style={{ fontSize: '13px', color: '#64748b', margin: '6px 0 0 0', fontWeight: '500' }}>Official Immersion Honor Code & Agreement</p>
+            </div>
+
+            {myData.undertaking_submitted ? (
+              // Submitted State
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '24px', padding: '30px 20px', textAlign: 'center' }}>
+                <div style={{ width: '72px', height: '72px', borderRadius: '50%', background: '#d1fae5', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '36px', boxShadow: '0 4px 10px rgba(16, 185, 129, 0.2)' }}>
+                  ✓
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '22px', fontWeight: '800', color: '#0f172a', margin: '0 0 8px 0' }}>Undertaking Submitted Successfully</h3>
+                  <p style={{ fontSize: '14px', color: '#64748b', maxWidth: '480px', margin: 0 }}>
+                    You have digitally signed and recorded this undertaking on the LTC system. A copy has been shared with your Allocated Squad Faculty.
+                  </p>
+                </div>
+
+                <div style={{ width: '100%', background: '#f8fafc', border: '1px dashed #cbd5e1', borderRadius: '12px', padding: '20px', display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '16px', textAlign: 'left', marginTop: '10px' }}>
+                  <div>
+                    <span style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: '700' }}>Signed Signature</span>
+                    <p style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a', margin: '4px 0 0 0', fontFamily: 'serif', fontStyle: 'italic' }}>{myData.undertaking_signed_name}</p>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: '700' }}>Permanent Register Number (PRN)</span>
+                    <p style={{ fontSize: '15px', fontWeight: '750', color: '#0f172a', margin: '4px 0 0 0', fontFamily: 'monospace' }}>{myData.prn}</p>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: '700' }}>Submission Date</span>
+                    <p style={{ fontSize: '15px', fontWeight: '750', color: '#0f172a', margin: '4px 0 0 0' }}>{myData.undertaking_signed_date}</p>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: '700' }}>Verification Status</span>
+                    <p style={{ fontSize: '15px', fontWeight: '800', color: '#10b981', margin: '4px 0 0 0' }}>Verified Record</p>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              // Form State
+              <form onSubmit={handleSubmitUndertaking} style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                <div style={{ maxHeight: '300px', overflowY: 'auto', padding: '16px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', fontSize: '14px', color: '#334155', lineHeight: '1.6', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <p style={{ margin: 0, fontWeight: '700', color: '#0f172a' }}>LTC Honor Code & Conduct Policy</p>
+                  <p style={{ margin: 0 }}>
+                    As a student representing my institution and participating in the Life Transformation Centre (LTC) program, I solemnly declare that:
+                  </p>
+                  <ol style={{ margin: 0, paddingLeft: '20px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <li>I will maintain <strong>100% attendance</strong> across all schedules, timetable activities, and physical sessions unless officially excused.</li>
+                    <li>I will actively engage and collaborate with my designated <strong>Squad Leader</strong> and <strong>Squad Faculty</strong> for all tasks and evaluation milestones.</li>
+                    <li>I will adhere to the official guidelines, timings, and code of conduct set by the LTC administration. Any breach of discipline is subject to warning/red flag actions.</li>
+                    <li>I understand that any violation of the code of conduct may lead to immediate disciplinary action, including suspension from the program.</li>
+                  </ol>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <label style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', cursor: 'pointer', fontSize: '13px', color: '#475569', fontWeight: '500' }}>
+                    <input type="checkbox" required style={{ marginTop: '3px' }} />
+                    <span>I confirm that I have read and fully understand the LTC Honor Code and Conduct Policy guidelines.</span>
+                  </label>
+                  <label style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', cursor: 'pointer', fontSize: '13px', color: '#475569', fontWeight: '500' }}>
+                    <input type="checkbox" required style={{ marginTop: '3px' }} />
+                    <span>I agree to abide by the attendance, squad participation, and mark evaluation rules.</span>
+                  </label>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '20px', borderTop: '1px solid #e2e8f0', paddingTop: '20px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: '#475569', marginBottom: '6px', textTransform: 'uppercase' }}>Full Name (Digital Signature)</label>
+                    <input
+                      type="text"
+                      className="input-field"
+                      placeholder="Type your full name to sign..."
+                      style={{ margin: 0 }}
+                      value={undertakingForm.signedName}
+                      onChange={(e) => setUndertakingForm({ ...undertakingForm, signedName: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: '#475569', marginBottom: '6px', textTransform: 'uppercase' }}>Date of Signature</label>
+                    <input
+                      type="date"
+                      className="input-field"
+                      style={{ margin: 0 }}
+                      value={undertakingForm.signedDate}
+                      onChange={(e) => setUndertakingForm({ ...undertakingForm, signedDate: e.target.value })}
+                      required
+                    />
+                  </div>
+                </div>
+
+                <button 
+                  type="submit" 
+                  className="btn" 
+                  disabled={submittingUndertaking}
+                  style={{ background: '#0f172a', color: '#ffffff', padding: '12px 24px', fontSize: '14px', fontWeight: '700', borderRadius: '8px', alignSelf: 'flex-start', border: 'none', cursor: 'pointer' }}
+                >
+                  {submittingUndertaking ? 'Submitting...' : 'Sign & Submit Undertaking'}
+                </button>
+              </form>
+            )}
           </div>
         )}
 

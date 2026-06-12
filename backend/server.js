@@ -29,7 +29,8 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 app.options("*", cors(corsOptions));
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 const PORT = process.env.PORT || 5001;
 const SECRET = 'ltc-super-secret-key-for-now';
@@ -366,6 +367,23 @@ const initDB = async () => {
       );
     `);
 
+    // ── NEW: Upload Jobs table for background processing ──
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS upload_jobs (
+        id SERIAL PRIMARY KEY,
+        batch_id INT REFERENCES batches(id) ON DELETE SET NULL,
+        filename VARCHAR(255),
+        status VARCHAR(50) DEFAULT 'pending',
+        total_records INT DEFAULT 0,
+        processed_records INT DEFAULT 0,
+        success_count INT DEFAULT 0,
+        failed_count INT DEFAULT 0,
+        errors JSONB DEFAULT '[]'::jsonb,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
     // ── Performance Indexes ──
     await pool.query("CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);");
     await pool.query("CREATE INDEX IF NOT EXISTS idx_users_prn ON users(prn);");
@@ -380,6 +398,11 @@ const initDB = async () => {
     await pool.query("CREATE INDEX IF NOT EXISTS idx_attendance_sessions_batch ON attendance_sessions(batch_id);");
     await pool.query("CREATE INDEX IF NOT EXISTS idx_attendance_records_v2_session ON attendance_records_v2(session_id);");
     await pool.query("CREATE INDEX IF NOT EXISTS idx_attendance_records_v2_batch ON attendance_records_v2(batch_id);");
+
+    // Additional indexes for bulk upload scaling
+    await pool.query("CREATE INDEX IF NOT EXISTS idx_users_faculty_id ON users(faculty_id);");
+    await pool.query("CREATE INDEX IF NOT EXISTS idx_batch_faculty_faculty ON batch_faculty(faculty_id);");
+    await pool.query("CREATE INDEX IF NOT EXISTS idx_upload_jobs_status ON upload_jobs(status);");
 
     // Super Admin
     const adminQuery = await pool.query("SELECT * FROM users WHERE role = 'admin'");
@@ -974,10 +997,388 @@ app.delete('/api/admin/batches/:id/faculty/:facultyId', authMiddleware(['admin']
   }
 });
 
-// ── Batch Bulk Upload (auto-detect students/faculty) ──────────────────────────
+// ── Background Bulk Ingestion Worker ──────────────────────────────────────────
+const processUploadJobInBackground = async (jobId, records, batchId = null, isBatchSpecific = false, adminUserId = null, adminUserName = 'Admin') => {
+  let processed = 0;
+  let success = 0;
+  let failed = 0;
+  let errorsList = [];
+
+  try {
+    // 1. Deduplicate records in memory before processing
+    const uniqueRecords = [];
+    const seenPrns = new Set();
+    const seenEmails = new Set();
+    const seenFacultyIds = new Set();
+    
+    for (const r of records) {
+      if (!r || typeof r !== 'object') continue;
+      
+      const normalized = {};
+      for (const key in r) {
+        const cleanKey = key.replace(/^\uFEFF/, '').toLowerCase().trim();
+        normalized[cleanKey] = r[key];
+      }
+      
+      const prn = String(normalized.prn || normalized['student id'] || normalized.student_id || '').trim();
+      const email = String(normalized.email || '').trim().toLowerCase();
+      const facultyId = String(normalized.faculty_id || normalized['faculty id'] || '').trim();
+      const role = String(normalized.role || '').toLowerCase().trim();
+      
+      const isFaculty = role === 'faculty' || (!prn && facultyId);
+      const isStudent = role === 'student' || prn || (!facultyId && email); // default to student
+      
+      normalized._isFaculty = isFaculty;
+      normalized._isStudent = isStudent;
+      normalized._prn = prn || null;
+      normalized._email = email || null;
+      normalized._facultyId = facultyId || null;
+      normalized._role = isFaculty ? 'faculty' : (role === 'ltc_member' ? 'ltc_member' : 'student');
+      
+      // Basic check
+      if (!normalized._email && !normalized._prn && !normalized._facultyId) {
+        failed++;
+        errorsList.push({ row: 'Unknown', error: 'Missing email, PRN, and Faculty ID. Row skipped.' });
+        continue;
+      }
+
+      // Deduplicate
+      if (isFaculty) {
+        if (normalized._facultyId && seenFacultyIds.has(normalized._facultyId)) continue;
+        if (normalized._email && seenEmails.has(normalized._email)) continue;
+        if (normalized._facultyId) seenFacultyIds.add(normalized._facultyId);
+        if (normalized._email) seenEmails.add(normalized._email);
+      } else {
+        if (normalized._prn && seenPrns.has(normalized._prn)) continue;
+        if (normalized._email && seenEmails.has(normalized._email)) continue;
+        if (normalized._prn) seenPrns.add(normalized._prn);
+        if (normalized._email) seenEmails.add(normalized._email);
+      }
+      
+      uniqueRecords.push(normalized);
+    }
+
+    // Update total records count on the job
+    const totalRecords = uniqueRecords.length + failed;
+    await pool.query(
+      "UPDATE upload_jobs SET total_records = $1, status = 'processing', updated_at = NOW() WHERE id = $2",
+      [totalRecords, jobId]
+    );
+
+    // Pre-hash default passwords for maximum performance
+    const defaultStudentHash = await bcrypt.hash('student123', 10);
+    const defaultFacultyHash = await bcrypt.hash('password123', 10);
+    const defaultMemberHash = await bcrypt.hash('ltc123', 10);
+
+    const CHUNK_SIZE = 1000;
+    for (let i = 0; i < uniqueRecords.length; i += CHUNK_SIZE) {
+      const chunk = uniqueRecords.slice(i, i + CHUNK_SIZE);
+      
+      try {
+        const chunkEmails = chunk.map(r => r._email).filter(Boolean);
+        const chunkPrns = chunk.map(r => r._prn).filter(Boolean);
+        const chunkFacultyIds = chunk.map(r => r._facultyId).filter(Boolean);
+
+        // Fetch existing users matching any identifier in this chunk
+        let existingUsers = [];
+        if (chunkEmails.length > 0 || chunkPrns.length > 0 || chunkFacultyIds.length > 0) {
+          const res = await pool.query(
+            `SELECT id, email, prn, faculty_id FROM users
+             WHERE email = ANY($1) OR prn = ANY($2) OR faculty_id = ANY($3)`,
+            [chunkEmails, chunkPrns, chunkFacultyIds]
+          );
+          existingUsers = res.rows;
+        }
+
+        const existingByEmail = new Map();
+        const existingByPrn = new Map();
+        const existingByFacultyId = new Map();
+
+        for (const u of existingUsers) {
+          if (u.email) existingByEmail.set(u.email.toLowerCase(), u);
+          if (u.prn) existingByPrn.set(u.prn, u);
+          if (u.faculty_id) existingByFacultyId.set(u.faculty_id, u);
+        }
+
+        const toInsert = [];
+        const toUpdate = [];
+
+        for (const r of chunk) {
+          let matchedUser = null;
+          if (r._email && existingByEmail.has(r._email)) matchedUser = existingByEmail.get(r._email);
+          else if (r._prn && existingByPrn.has(r._prn)) matchedUser = existingByPrn.get(r._prn);
+          else if (r._facultyId && existingByFacultyId.has(r._facultyId)) matchedUser = existingByFacultyId.get(r._facultyId);
+
+          const name = r.name || r.full_name || r.student_name;
+          if (!name) {
+            failed++;
+            errorsList.push({ row: r._email || r._prn || r._facultyId || 'Row', error: 'Missing name column.' });
+            continue;
+          }
+
+          if (matchedUser) {
+            toUpdate.push({ id: matchedUser.id, record: r });
+          } else {
+            toInsert.push(r);
+          }
+        }
+
+        // Bulk insert new users
+        let insertedRows = [];
+        if (toInsert.length > 0) {
+          const insertParams = [];
+          const insertValueRows = [];
+          let paramIdx = 1;
+
+          for (const r of toInsert) {
+            const passHash = r._role === 'faculty' ? defaultFacultyHash : (r._role === 'ltc_member' ? defaultMemberHash : defaultStudentHash);
+            const values = [
+              r.name || r.full_name || r.student_name,
+              r._email || `temp_${Date.now()}_${Math.floor(Math.random() * 100000)}@ltc.edu`,
+              passHash,
+              r._role,
+              r.department || null,
+              r.semester || r.year || null,
+              r.division || null,
+              r.school || null,
+              (r.panel || '').trim().toUpperCase() || null,
+              r.is_primary === 'true' || r.is_primary === true || r.role === 'primary',
+              r._prn,
+              r._facultyId,
+              r.phone || null,
+              r.dob || null,
+              r.gender || null,
+              r.program || null,
+              r.year || r.semester || null,
+              r.designation || null,
+              r.status || 'active',
+              r.nri === true || r.nri === 1 || String(r.nri).toLowerCase().trim() === 'yes' || String(r.nri).toLowerCase().trim() === 'true',
+            ];
+
+            const placeholders = [];
+            for (let j = 0; j < values.length; j++) {
+              placeholders.push(`$${paramIdx++}`);
+            }
+            insertValueRows.push(`(${placeholders.join(', ')})`);
+            insertParams.push(...values);
+          }
+
+          const insertRes = await pool.query(
+            `INSERT INTO users (name, email, password, role, department, semester, division, school, panel, is_primary, prn, faculty_id, phone, dob, gender, program, year, designation, status, nri)
+             VALUES ${insertValueRows.join(', ')}
+             RETURNING id, email, prn, faculty_id, role, name`,
+            insertParams
+          );
+          insertedRows = insertRes.rows;
+          success += insertedRows.length;
+
+
+        }
+
+        // Bulk update existing users
+        if (toUpdate.length > 0) {
+          const updateParams = [];
+          const updateValueRows = [];
+          let paramIdx = 1;
+
+          for (const item of toUpdate) {
+            const r = item.record;
+            const values = [
+              item.id,
+              r.name || r.full_name || r.student_name,
+              r.department || null,
+              r.semester || r.year || null,
+              r.division || null,
+              r.school || null,
+              (r.panel || '').trim().toUpperCase() || null,
+              r.phone || null,
+              r.dob || null,
+              r.gender || null,
+              r.program || null,
+              r.year || r.semester || null,
+              r.designation || null,
+              r.status || 'active',
+              r.nri === true || r.nri === 1 || String(r.nri).toLowerCase().trim() === 'yes' || String(r.nri).toLowerCase().trim() === 'true',
+            ];
+
+            const placeholders = [
+              `$${paramIdx++}::int`,
+              `$${paramIdx++}::varchar`,
+              `$${paramIdx++}::varchar`,
+              `$${paramIdx++}::varchar`,
+              `$${paramIdx++}::varchar`,
+              `$${paramIdx++}::varchar`,
+              `$${paramIdx++}::varchar`,
+              `$${paramIdx++}::varchar`,
+              `$${paramIdx++}::varchar`,
+              `$${paramIdx++}::varchar`,
+              `$${paramIdx++}::varchar`,
+              `$${paramIdx++}::varchar`,
+              `$${paramIdx++}::varchar`,
+              `$${paramIdx++}::varchar`,
+              `$${paramIdx++}::boolean`,
+            ];
+
+            updateValueRows.push(`(${placeholders.join(', ')})`);
+            updateParams.push(...values);
+          }
+
+          await pool.query(
+            `UPDATE users AS u SET
+              name = v.name,
+              department = COALESCE(v.department, u.department),
+              semester = COALESCE(v.semester, u.semester),
+              division = COALESCE(v.division, u.division),
+              school = COALESCE(v.school, u.school),
+              panel = COALESCE(v.panel, u.panel),
+              phone = COALESCE(v.phone, u.phone),
+              dob = COALESCE(v.dob, u.dob),
+              gender = COALESCE(v.gender, u.gender),
+              program = COALESCE(v.program, u.program),
+              year = COALESCE(v.year, u.year),
+              designation = COALESCE(v.designation, u.designation),
+              status = COALESCE(v.status, u.status),
+              nri = COALESCE(v.nri, u.nri)
+            FROM (VALUES ${updateValueRows.join(', ')}) AS v(id, name, department, semester, division, school, panel, phone, dob, gender, program, year, designation, status, nri)
+            WHERE u.id = v.id`,
+            updateParams
+          );
+          success += toUpdate.length;
+        }
+
+        // 4. Batch Allocation
+        if (isBatchSpecific && batchId) {
+          const allProcessedUsers = [
+            ...insertedRows.map(u => ({ id: u.id, role: u.role, email: u.email, prn: u.prn, faculty_id: u.faculty_id, name: u.name })),
+            ...toUpdate.map(item => {
+              const r = item.record;
+              return { id: item.id, role: r._role, email: r._email, prn: r._prn, faculty_id: r._facultyId, name: r.name || r.full_name || r.student_name };
+            })
+          ];
+
+          const studentsAlloc = allProcessedUsers.filter(u => u.role === 'student');
+          const facultyAlloc = allProcessedUsers.filter(u => u.role === 'faculty');
+
+          if (studentsAlloc.length > 0) {
+            const studentIds = studentsAlloc.map(s => s.id);
+            
+            const checkAllocRes = await pool.query(
+              `SELECT bs.student_id, b.name AS batch_name
+               FROM batch_students bs
+               JOIN batches b ON bs.batch_id = b.id
+               WHERE bs.student_id = ANY($1) AND bs.batch_id <> $2 AND b.is_deleted IS NOT TRUE`,
+              [studentIds, batchId]
+            );
+
+            const activeBatchMap = new Map();
+            for (const row of checkAllocRes.rows) {
+              activeBatchMap.set(row.student_id, row.batch_name);
+            }
+
+            const validStudents = [];
+            for (const s of studentsAlloc) {
+              if (activeBatchMap.has(s.id)) {
+                failed++;
+                success--;
+                errorsList.push({ row: s.email || s.prn || 'Student', error: `Student already allocated to active batch: ${activeBatchMap.get(s.id)}` });
+              } else {
+                validStudents.push(s);
+              }
+            }
+
+            if (validStudents.length > 0) {
+              const studentParams = [];
+              const studentValueRows = [];
+              let studentParamIdx = 1;
+
+              for (const s of validStudents) {
+                const barcode = `LTC-${batchId}-${s.id}-${Math.floor(Math.random() * 10000)}`;
+                const origRecord = chunk.find(r => r._email === s.email || r._prn === s.prn);
+                const room = origRecord ? origRecord.room : null;
+
+                studentValueRows.push(`($${studentParamIdx++}, $${studentParamIdx++}, $${studentParamIdx++}, $${studentParamIdx++}, $${studentParamIdx++})`);
+                studentParams.push(batchId, s.id, barcode, null, room || null);
+              }
+
+              await pool.query(
+                `INSERT INTO batch_students (batch_id, student_id, barcode, squad, room)
+                 VALUES ${studentValueRows.join(', ')}
+                 ON CONFLICT (batch_id, student_id)
+                 DO UPDATE SET room = COALESCE(EXCLUDED.room, batch_students.room)`,
+                studentParams
+              );
+
+              for (const s of validStudents) {
+                sendLtcBatchEmail(s.name, s.email);
+              }
+            }
+          }
+
+          if (facultyAlloc.length > 0) {
+            const facultyParams = [];
+            const facultyValueRows = [];
+            let facultyParamIdx = 1;
+
+            for (const f of facultyAlloc) {
+              facultyValueRows.push(`($${facultyParamIdx++}, $${facultyParamIdx++})`);
+              facultyParams.push(batchId, f.id);
+            }
+
+            await pool.query(
+              `INSERT INTO batch_faculty (batch_id, faculty_id)
+               VALUES ${facultyValueRows.join(', ')}
+               ON CONFLICT (batch_id, faculty_id) DO NOTHING`,
+              facultyParams
+            );
+          }
+        }
+      } catch (chunkErr) {
+        console.error(`Error processing chunk at index ${i}:`, chunkErr);
+        failed += chunk.length;
+        errorsList.push({ row: 'Chunk Ingestion', error: `Database chunk insertion failed: ${chunkErr.message}` });
+      }
+
+      processed += chunk.length;
+
+      await pool.query(
+        `UPDATE upload_jobs
+         SET processed_records = $1, success_count = $2, failed_count = $3, errors = $4, updated_at = NOW()
+         WHERE id = $5`,
+        [processed, success, failed, JSON.stringify(errorsList), jobId]
+      );
+
+      await new Promise(resolve => setImmediate(resolve));
+    }
+
+    await pool.query(
+      `UPDATE upload_jobs
+       SET status = 'completed', updated_at = NOW()
+       WHERE id = $1`,
+      [jobId]
+    );
+
+    writeAudit(adminUserId, adminUserName, 'BULK_UPLOAD_COMPLETED', 'upload_job', jobId, {
+      total_records: processed,
+      success_count: success,
+      failed_count: failed
+    });
+
+  } catch (fatalErr) {
+    console.error('Fatal bulk upload error:', fatalErr);
+    errorsList.push({ row: 'Fatal Job', error: fatalErr.message });
+    await pool.query(
+      `UPDATE upload_jobs
+       SET status = 'failed', errors = $1, updated_at = NOW()
+       WHERE id = $2`,
+      [JSON.stringify(errorsList), jobId]
+    );
+  }
+};
+
+// Batch Bulk Upload (auto-detect students/faculty) - BACKGROUND PROCESSOR
 app.post('/api/admin/batches/:id/bulk-upload', authMiddleware(['admin']), async (req, res) => {
   const { id } = req.params;
-  const { records } = req.body; // array of row objects from CSV/Excel
+  const { records } = req.body;
 
   if (!Array.isArray(records) || records.length === 0) {
     return res.status(400).json({ message: 'records must be a non-empty array' });
@@ -985,130 +1386,23 @@ app.post('/api/admin/batches/:id/bulk-upload', authMiddleware(['admin']), async 
 
   try {
     // Verify batch
-    const batchCheck = await pool.query("SELECT id FROM batches WHERE id = $1", [id]);
+    const batchCheck = await pool.query("SELECT id, name FROM batches WHERE id = $1", [id]);
     if (batchCheck.rowCount === 0) return res.status(404).json({ message: 'Batch not found' });
 
-    const studentsAdded = [];
-    const facultyAdded = [];
-    const errors = [];
-    const notFound = [];
+    // Initialize the job
+    const jobRes = await pool.query(
+      `INSERT INTO upload_jobs (batch_id, filename, status, total_records)
+       VALUES ($1, $2, $3, $4) RETURNING id`,
+      [id, `Batch ${batchCheck.rows[0].name} Ingestion`, 'pending', records.length]
+    );
+    const jobId = jobRes.rows[0].id;
 
-    for (const row of records) {
-      const normalized = {};
-      for (const key in row) {
-        const cleanKey = key.replace(/^\uFEFF/, '').toLowerCase().trim();
-        normalized[cleanKey] = row[key];
-      }
-
-      const prn = String(normalized.prn || normalized['student id'] || normalized.student_id || '').trim();
-      const email = String(normalized.email || '').trim().toLowerCase();
-      const facultyId = String(normalized.faculty_id || normalized['faculty id'] || '').trim();
-      const role = String(normalized.role || '').toLowerCase().trim();
-
-      // Determine if faculty or student
-      const isFaculty = role === 'faculty' || (!prn && facultyId);
-      const isStudent = role === 'student' || prn;
-
-      if (isFaculty) {
-        // Try matching faculty by faculty_id or email
-        let matchQuery = null;
-        if (facultyId) {
-          matchQuery = await pool.query("SELECT id, name, email FROM users WHERE role='faculty' AND faculty_id=$1", [facultyId]);
-        }
-        if ((!matchQuery || matchQuery.rowCount === 0) && email) {
-          matchQuery = await pool.query("SELECT id, name, email FROM users WHERE role='faculty' AND email=$1", [email]);
-        }
-        if (matchQuery && matchQuery.rowCount > 0) {
-          const faculty = matchQuery.rows[0];
-          try {
-            await pool.query(
-              `INSERT INTO batch_faculty (batch_id, faculty_id) VALUES ($1, $2) ON CONFLICT (batch_id, faculty_id) DO NOTHING`,
-              [id, faculty.id]
-            );
-            facultyAdded.push(faculty.email);
-          } catch (e) {
-            errors.push({ row: email || facultyId, error: e.message });
-          }
-        } else {
-          notFound.push({ row: email || facultyId, type: 'faculty' });
-        }
-      } else if (isStudent) {
-        // Try matching student by PRN or email
-        let matchQuery = null;
-        if (prn) {
-          matchQuery = await pool.query("SELECT id, name, email FROM users WHERE role='student' AND prn=$1", [prn]);
-        }
-        if ((!matchQuery || matchQuery.rowCount === 0) && email) {
-          matchQuery = await pool.query("SELECT id, name, email FROM users WHERE role='student' AND email=$1", [email]);
-        }
-
-        let student = null;
-        if (matchQuery && matchQuery.rowCount > 0) {
-          student = matchQuery.rows[0];
-        } else if (prn) {
-          // Auto-create student in master DB if not found (upsert)
-          try {
-            const defaultPass = 'student123';
-            const hashed = await bcrypt.hash(defaultPass, 10);
-            const studentName = String(normalized.name || normalized.full_name || normalized.student_name || 'Student PRN ' + prn).trim();
-            const studentEmail = email || `student_${prn}@ltc.edu`;
-            const semester = normalized.semester || normalized.year || null;
-            const department = normalized.department || null;
-            const division = normalized.division || null;
-            const school = normalized.school || null;
-            const gender = normalized.gender || null;
-
-            const insertRes = await pool.query(
-              `INSERT INTO users (name, email, password, role, prn, semester, department, division, school, gender)
-               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id, name, email`,
-              [studentName, studentEmail, hashed, 'student', prn, semester, department, division, school, gender]
-            );
-            student = insertRes.rows[0];
-            writeAudit(req.user.id, req.user.name || 'Admin', 'STUDENT_AUTO_CREATED', 'user', student.id, { prn, email: studentEmail });
-          } catch (e) {
-            errors.push({ row: email || prn, error: 'Failed to auto-create student: ' + e.message });
-          }
-        }
-
-        if (student) {
-          try {
-            const checkBatch = await pool.query(
-              `SELECT b.name FROM batch_students bs
-               JOIN batches b ON bs.batch_id = b.id
-               WHERE bs.student_id = $1 AND bs.batch_id <> $2 AND (b.is_deleted = false OR b.is_deleted IS NULL)
-               LIMIT 1`,
-              [student.id, id]
-            );
-            if (checkBatch.rowCount > 0) {
-              errors.push({ row: email || prn, error: `Student is already allocated to active batch: ${checkBatch.rows[0].name}` });
-              continue;
-            }
-
-            const barcode = `LTC-${id}-${student.id}-${Math.floor(Math.random() * 10000)}`;
-            const squad = null; // Squad must remain NULL/Unassigned during bulk upload
-            const room = normalized.room || null;
-            await pool.query(
-              `INSERT INTO batch_students (batch_id, student_id, barcode, squad, room) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (batch_id, student_id) DO NOTHING`,
-              [id, student.id, barcode, squad, room]
-            );
-            studentsAdded.push(student.email);
-          } catch (e) {
-            errors.push({ row: email || prn, error: e.message });
-          }
-        } else {
-          notFound.push({ row: email || prn, type: 'student' });
-        }
-      }
-    }
-
-    res.json({
-      message: `Processed ${records.length} records. Added ${studentsAdded.length} students and ${facultyAdded.length} faculty.`,
-      studentsAdded: studentsAdded.length,
-      facultyAdded: facultyAdded.length,
-      notFound: notFound.length,
-      notFoundList: notFound,
-      errors
+    // Start background processing async
+    setImmediate(() => {
+      processUploadJobInBackground(jobId, records, parseInt(id), true, req.user.id, req.user.name || 'Admin');
     });
+
+    res.json({ jobId, message: 'Bulk upload started in the background.' });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
@@ -1300,6 +1594,7 @@ app.get('/api/faculty/dashboard', authMiddleware(['faculty']), async (req, res) 
       // Fetch squad students from the active batch
       const squadStudentsRes = await pool.query(
         `SELECT u.id, u.name, u.email, u.semester, u.department, u.panel, u.nri, u.red_flag, u.gender, u.prn, u.phone,
+                u.undertaking_submitted,
                 bs.squad, bs.room, bs.barcode
          FROM users u
          JOIN batch_students bs ON u.id = bs.student_id
@@ -1330,16 +1625,28 @@ app.get('/api/faculty/dashboard', authMiddleware(['faculty']), async (req, res) 
       let myStudents;
       if (panels.length > 0) {
         myStudents = await pool.query(
-          "SELECT id, name, email, semester, department, panel, nri, red_flag, prn FROM users WHERE role = 'student' AND panel = ANY($1)",
+          "SELECT id, name, email, semester, department, panel, nri, red_flag, prn, undertaking_submitted FROM users WHERE role = 'student' AND panel = ANY($1)",
           [panels]
         );
       } else {
         myStudents = await pool.query(
-          "SELECT id, name, email, semester, department, panel, nri, red_flag, prn FROM users WHERE role = 'student' AND department = $1",
+          "SELECT id, name, email, semester, department, panel, nri, red_flag, prn, undertaking_submitted FROM users WHERE role = 'student' AND department = $1",
           [req.user.department]
         );
       }
       myStudentsRows = myStudents.rows;
+    }
+
+    let batchFaculty = [];
+    if (activeBatchId && squadName) {
+      const batchFacultyRes = await pool.query(
+        `SELECT u.id, u.name, u.email, u.department, u.school, u.panel, bf.squad
+         FROM users u
+         JOIN batch_faculty bf ON u.id = bf.faculty_id
+         WHERE bf.batch_id = $1 AND bf.squad = $2`,
+        [activeBatchId, squadName]
+      );
+      batchFaculty = batchFacultyRes.rows;
     }
 
     res.json({
@@ -1347,7 +1654,8 @@ app.get('/api/faculty/dashboard', authMiddleware(['faculty']), async (req, res) 
       data: withLtcId(myStudentsRows),
       facultyInfo,
       squadLeader,
-      squadStudents: withLtcId(squadStudents)
+      squadStudents: withLtcId(squadStudents),
+      batchFaculty
     });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
@@ -1480,35 +1788,39 @@ app.put('/api/admin/insurance', authMiddleware(['admin']), async (req, res) => {
 // Bulk Upload (global, not batch-specific)
 app.post('/api/admin/bulk-upload', authMiddleware(['admin']), async (req, res) => {
   const { users } = req.body;
-  if (!Array.isArray(users)) return res.status(400).json({ message: 'Users must be an array' });
+  if (!Array.isArray(users) || users.length === 0) {
+    return res.status(400).json({ message: 'users must be a non-empty array' });
+  }
   try {
-    const results = [];
-    const errors = [];
-    for (const u of users) {
-      try {
-        let password = 'student123';
-        if (u.role === 'faculty') password = 'password123';
-        else if (u.role === 'ltc_member') password = 'ltc123';
-        const hashedPassword = await bcrypt.hash(password, 10);
-        await pool.query(
-          `INSERT INTO users (name, email, password, role, department, semester, division, school, panel, is_primary, prn, faculty_id, phone, dob, gender, program, year, designation, status, nri)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)`,
-          [
-            u.name || u.full_name, u.email, hashedPassword, (u.role || 'student').toLowerCase(),
-            u.department || null, u.semester || u.year || null, u.division || null, u.school || null,
-            (u.panel || '').trim().toUpperCase() || null,
-            u.is_primary === 'true' || u.is_primary === true || u.role === 'primary',
-            u.prn || null, u.faculty_id || null, u.phone || null, u.dob || null, u.gender || null,
-            u.program || null, u.year || u.semester || null, u.designation || null, u.status || 'active',
-            u.nri === true || u.nri === 1 || String(u.nri).toLowerCase().trim() === 'yes' || String(u.nri).toLowerCase().trim() === 'true',
-          ]
-        );
-        results.push(u.email);
-      } catch (err) {
-        errors.push({ email: u.email, error: err.message });
-      }
-    }
-    res.status(201).json({ message: `Successfully added ${results.length} users.`, results, errors });
+    const jobRes = await pool.query(
+      `INSERT INTO upload_jobs (batch_id, filename, status, total_records)
+       VALUES ($1, $2, $3, $4) RETURNING id`,
+      [null, 'Global Master Ingestion', 'pending', users.length]
+    );
+    const jobId = jobRes.rows[0].id;
+
+    // Start background processing
+    setImmediate(() => {
+      processUploadJobInBackground(jobId, users, null, false, req.user.id, req.user.name || 'Admin');
+    });
+
+    res.json({ jobId, message: 'Bulk upload started in the background.' });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// Polling endpoint for upload job progress
+app.get('/api/admin/upload-jobs/:jobId', authMiddleware(['admin']), async (req, res) => {
+  const { jobId } = req.params;
+  try {
+    const result = await pool.query(
+      `SELECT id, batch_id, filename, status, total_records, processed_records, success_count, failed_count, errors, created_at, updated_at
+       FROM upload_jobs WHERE id = $1`,
+      [jobId]
+    );
+    if (result.rowCount === 0) return res.status(404).json({ message: 'Job not found' });
+    res.json({ job: result.rows[0] });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }

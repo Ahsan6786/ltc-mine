@@ -231,45 +231,79 @@ export default function LtcMemberDashboard() {
         height: '100vh'
       }}>
         {/* Header */}
-        <div className="sidebar-header" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', padding: '20px 20px', gap: '4px' }}>
-          <img src="/ltc.png" alt="LTC Logo" style={{ width: '180px', height: '180px', objectFit: 'contain', marginBottom: '12px', marginLeft: '-5px' }} />
-          <p style={{ fontSize: '18px', fontWeight: '800', color: 'white', margin: 0, textTransform: 'uppercase', letterSpacing: '0.5px' }}>LTC Member</p>
-          <p style={{ fontSize: '13px', color: '#94a3b8', margin: 0, fontWeight: '500' }}>Coordinator Portal</p>
+        <div className="sidebar-header">
+          <div className="sidebar-brand-container">
+            <img src="/ltc.png" alt="LTC Logo" className="sidebar-brand-logo" />
+          </div>
+          {isMobile && (
+            <button className="sidebar-close-btn" onClick={() => setIsSidebarOpen(false)} aria-label="Close Sidebar">
+              <X size={14} />
+            </button>
+          )}
         </div>
 
         {/* Nav */}
         <nav className="sidebar-nav">
-          <p className="sidebar-section-label">Overview</p>
+          <span style={{ fontSize: '10px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', padding: '8px 12px 0', display: 'block' }}>coordinator</span>
+          
+          <p className="sidebar-section-label" style={{ paddingTop: '8px' }}>Overview</p>
           <button className={`sidebar-item ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => { setActiveTab('dashboard'); if (isMobile) setIsSidebarOpen(false); }}>
-            <LayoutDashboard size={16} /> Student Directory
+            <span className="sidebar-item-content">
+              <LayoutDashboard size={16} />
+              <span>Student Directory</span>
+            </span>
           </button>
           <button className={`sidebar-item ${activeTab === 'timetable' ? 'active' : ''}`} onClick={() => { setActiveTab('timetable'); if (isMobile) setIsSidebarOpen(false); }}>
-            <Clock size={16} /> Immersion Timetable
+            <span className="sidebar-item-content">
+              <Clock size={16} />
+              <span>Immersion Timetable</span>
+            </span>
           </button>
           <button className={`sidebar-item ${activeTab === 'scanner' ? 'active' : ''}`} onClick={() => { setActiveTab('scanner'); if (isMobile) setIsSidebarOpen(false); }}>
-            <Scan size={16} /> QR / Slip Verification
+            <span className="sidebar-item-content">
+              <Scan size={16} />
+              <span>QR / Slip Verification</span>
+            </span>
           </button>
           <button className={`sidebar-item ${activeTab === 'manage_squad' ? 'active' : ''}`} onClick={() => { setActiveTab('manage_squad'); if (isMobile) setIsSidebarOpen(false); }}>
-            <Users size={16} /> Manage Squad
+            <span className="sidebar-item-content">
+              <Users size={16} />
+              <span>Manage Squad</span>
+            </span>
           </button>
 
           <div className="sidebar-separator" />
           <p className="sidebar-section-label">Resources</p>
           <button className={`sidebar-item ${activeTab === 'documents' ? 'active' : ''}`} onClick={() => { setActiveTab('documents'); if (isMobile) setIsSidebarOpen(false); }}>
-            <FileText size={16} /> Shared Guidelines
+            <span className="sidebar-item-content">
+              <FileText size={16} />
+              <span>Shared Guidelines</span>
+            </span>
           </button>
 
           <div className="sidebar-separator" />
-          <p className="sidebar-section-label">SUPPORT</p>
+          <p className="sidebar-section-label">Support</p>
           <button className={`sidebar-item ${activeTab === 'feedback' ? 'active' : ''}`} onClick={() => { setActiveTab('feedback'); if (isMobile) setIsSidebarOpen(false); }}>
-            <MessageSquare size={16} /> Coordinator Feedback
+            <span className="sidebar-item-content">
+              <MessageSquare size={16} />
+              <span>Coordinator Feedback</span>
+            </span>
           </button>
         </nav>
 
         {/* Footer */}
         <div className="sidebar-footer">
-          <button className="sidebar-item logout" onClick={handleLogout}>
-            <LogOut size={16} /> Sign Out
+          <div className="sidebar-user-info">
+            <div className="sidebar-user-avatar">
+              {currentUser?.name ? currentUser.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'CO'}
+            </div>
+            <div className="sidebar-user-details">
+              <span className="sidebar-user-name">{currentUser?.name || 'Coordinator'}</span>
+              <span className="sidebar-user-role">{currentUser?.department || 'LTC Coordinator'}</span>
+            </div>
+          </div>
+          <button className="sidebar-logout-btn" onClick={handleLogout} title="Sign Out" aria-label="Sign Out">
+            <LogOut size={18} />
           </button>
         </div>
       </div>

@@ -143,6 +143,9 @@ export default function AdminDashboard() {
   const [studentForm, setStudentForm] = useState({ name: '', email: '', prn: '', department: '', semester: '', division: '', school: '', panel: '', gender: '' })
   const [isLtcModalOpen, setIsLtcModalOpen] = useState(false)
   const [ltcForm, setLtcForm] = useState({ name: '', email: '', role_type: 'member' })
+  const [isResetConfirmModalOpen, setIsResetConfirmModalOpen] = useState(false)
+  const [resetConfirmationInput, setResetConfirmationInput] = useState('')
+  const [isResetting, setIsResetting] = useState(false)
 
   // Custom Selector Dropdown Overrides
   const [isCustomStudentSchool, setIsCustomStudentSchool] = useState(false)
@@ -160,6 +163,8 @@ export default function AdminDashboard() {
   const [bulkInsuranceData, setBulkInsuranceData] = useState([])
   const [isUploading, setIsUploading] = useState(false)
   const [isUploadingInsurance, setIsUploadingInsurance] = useState(false)
+  const [jobProgress, setJobProgress] = useState(null)
+  const [showProgressModal, setShowProgressModal] = useState(false)
 
 
   // Doc form
@@ -243,6 +248,15 @@ export default function AdminDashboard() {
   }), [users, debouncedStudentSearch, selectedSchool, selectedDepartment, selectedDivision, selectedPanel])
 
   const ltcMembers = useMemo(() => users.filter(u => u.role === 'ltc_member'), [users])
+
+  const counts = useMemo(() => {
+    return {
+      faculty: users.filter(u => u.role === 'faculty').length,
+      students: users.filter(u => u.role === 'student').length,
+      ltc: users.filter(u => u.role === 'ltc_member').length,
+      documents: documents.length
+    }
+  }, [users, documents])
 
   // Pagination instances
   const facultyPg = usePagination(faculties)
@@ -399,17 +413,66 @@ export default function AdminDashboard() {
     const all = [...bulkData.faculty, ...bulkData.students]
     if (!all.length) { toast('No valid data to upload.', 'warning'); return }
     setIsUploading(true)
+    setShowProgressModal(true)
+    setJobProgress(null)
+    
     try {
       const res = await apiFetch('/api/admin/bulk-upload', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ users: all })
       })
-      if (!res) return
+      if (!res) throw new Error('Network error or session expired.')
       const data = await res.json()
-      toast(data.message, res.ok ? 'success' : 'error')
-      if (res.ok) { setBulkData({ faculty: [], students: [], errors: [] }); fetchUsers(); setActiveTab('faculty') }
-    } finally { setIsUploading(false) }
+      
+      if (!res.ok) {
+        throw new Error(data.message || 'Failed to start bulk upload.')
+      }
+
+      const jobId = data.jobId
+
+      const intervalId = setInterval(async () => {
+        try {
+          const pollRes = await apiFetch(`/api/admin/upload-jobs/${jobId}`)
+          if (!pollRes) {
+            clearInterval(intervalId)
+            setIsUploading(false)
+            setShowProgressModal(false)
+            return
+          }
+          const pollData = await pollRes.json()
+          
+          if (pollRes.ok && pollData.job) {
+            setJobProgress(pollData.job)
+            
+            if (pollData.job.status === 'completed' || pollData.job.status === 'failed') {
+              clearInterval(intervalId)
+              setIsUploading(false)
+              if (pollData.job.status === 'completed') {
+                toast(`Bulk upload finished! Success: ${pollData.job.success_count}, Failed: ${pollData.job.failed_count}`, 'success')
+              } else {
+                toast('Bulk upload job failed.', 'error')
+              }
+            }
+          } else {
+            clearInterval(intervalId)
+            setIsUploading(false)
+            toast('Failed to query upload status.', 'error')
+            setShowProgressModal(false)
+          }
+        } catch (err) {
+          clearInterval(intervalId)
+          setIsUploading(false)
+          toast('Polling status error: ' + err.message, 'error')
+          setShowProgressModal(false)
+        }
+      }, 750)
+
+    } catch (err) {
+      setIsUploading(false)
+      setShowProgressModal(false)
+      toast(err.message || 'Upload error', 'error')
+    }
   }
 
   const processInsuranceData = (data) => {
@@ -451,9 +514,6 @@ export default function AdminDashboard() {
     } finally { setIsUploadingInsurance(false) }
   }
 
-
-
-
   // ─── Feedback ──────────────────────────────────────────────────────────────
   const handleViewFeedback = async (userId, userName) => {
     setSelectedUserForFeedback({ id: userId, name: userName })
@@ -494,23 +554,38 @@ export default function AdminDashboard() {
 
   // ─── Reset Database ────────────────────────────────────────────────────────
   const handleResetDatabase = async () => {
-    if (!window.confirm('WARNING: This permanently deletes ALL data except admin. Cannot be undone. Proceed?')) return
-    const res = await apiFetch('/api/admin/reset-database', { method: 'POST' })
-    if (!res) return
-    const data = await res.json()
-    toast(data.message, res.ok ? 'success' : 'error')
-    if (res.ok) { fetchUsers(); fetchDocuments() }
+    setIsResetting(true)
+    try {
+      const res = await apiFetch('/api/admin/reset-database', { method: 'POST' })
+      if (!res) return
+      const data = await res.json()
+      toast(data.message, res.ok ? 'success' : 'error')
+      if (res.ok) {
+        fetchUsers()
+        fetchDocuments()
+        setIsResetConfirmModalOpen(false)
+        setResetConfirmationInput('')
+      }
+    } catch (err) {
+      toast('Failed to reset database.', 'error')
+    } finally {
+      setIsResetting(false)
+    }
   }
 
-
-
   // ─── Sidebar nav item ──────────────────────────────────────────────────────
-  const NavItem = ({ tab, icon, label }) => (
+  const NavItem = ({ tab, icon, label, badgeCount }) => (
     <button
       className={`sidebar-item ${activeTab === tab ? 'active' : ''}`}
       onClick={() => { setActiveTab(tab); if (isMobile) setIsSidebarOpen(false) }}
     >
-      {icon} {label}
+      <span className="sidebar-item-content">
+        {icon}
+        <span>{label}</span>
+      </span>
+      {badgeCount !== undefined && badgeCount > 0 && (
+        <span className="sidebar-badge">{badgeCount}</span>
+      )}
     </button>
   )
 
@@ -532,14 +607,19 @@ export default function AdminDashboard() {
         transition: 'transform 0.3s cubic-bezier(0.4,0,0.2,1)'
       }}>
         <div className="sidebar-header">
-          {isMobile && <button className="sidebar-close-btn" onClick={() => setIsSidebarOpen(false)}>✕</button>}
-          <img src="/ltc.png" alt="LTC Logo" className="sidebar-logo" />
-          <p className="sidebar-portal-label">Admin Portal</p>
-          <p className="sidebar-sub-label">{currentUser?.name || 'Administrator'}</p>
+          <div className="sidebar-brand-container">
+            <img src="/ltc.png" alt="LTC Logo" className="sidebar-brand-logo" />
+          </div>
+          {isMobile && (
+            <button className="sidebar-close-btn" onClick={() => setIsSidebarOpen(false)} aria-label="Close Sidebar">
+              <X size={14} />
+            </button>
+          )}
         </div>
 
         <nav className="sidebar-nav">
-          <p className="sidebar-section-label">Management</p>
+          <span style={{ fontSize: '10px', fontWeight: 800, letterSpacing: '1.5px', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', padding: '8px 12px 0', display: 'block' }}>admin</span>
+          <p className="sidebar-section-label" style={{ paddingTop: '8px' }}>Management</p>
           <NavItem tab="faculty" icon={<BookOpen size={16} />} label="Master Faculty" />
           <NavItem tab="students" icon={<GraduationCap size={16} />} label="Master Students" />
           <NavItem tab="batches" icon={<Layers size={16} />} label="Batch Management" />
@@ -715,6 +795,91 @@ export default function AdminDashboard() {
                 )}
               </div>
 
+              <Modal open={showProgressModal} onClose={() => {
+                if (jobProgress && (jobProgress.status === 'completed' || jobProgress.status === 'failed')) {
+                  setShowProgressModal(false)
+                  setJobProgress(null)
+                }
+              }} title="Bulk Upload Progress" size="lg">
+                {jobProgress ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontWeight: 600, color: 'var(--text)' }}>
+                        {jobProgress.status === 'processing' ? 'Processing records...' :
+                         jobProgress.status === 'completed' ? 'Upload Completed!' :
+                         jobProgress.status === 'failed' ? 'Upload Failed' : 'Initializing...'}
+                      </span>
+                      <span style={{ fontSize: 13, color: 'var(--text-3)' }}>
+                        {jobProgress.processed_records} / {jobProgress.total_records}
+                      </span>
+                    </div>
+
+                    {/* Progress Bar */}
+                    <div style={{ width: '100%', height: 8, background: '#e2e8f0', borderRadius: 4, overflow: 'hidden' }}>
+                      <div style={{
+                        width: `${jobProgress.total_records > 0 ? (jobProgress.processed_records / jobProgress.total_records) * 100 : 0}%`,
+                        height: '100%',
+                        background: jobProgress.status === 'failed' ? 'var(--danger)' : 'var(--primary)',
+                        transition: 'width 0.4s ease'
+                      }} />
+                    </div>
+
+                    {/* Stats Counter */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                      <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', padding: 12, borderRadius: 8, textAlign: 'center' }}>
+                        <div style={{ fontSize: 18, fontWeight: 800, color: '#166534' }}>{jobProgress.success_count}</div>
+                        <div style={{ fontSize: 12, color: '#15803d', fontWeight: 600 }}>Success</div>
+                      </div>
+                      <div style={{ background: '#fef2f2', border: '1px solid #fecaca', padding: 12, borderRadius: 8, textAlign: 'center' }}>
+                        <div style={{ fontSize: 18, fontWeight: 800, color: '#991b1b' }}>{jobProgress.failed_count}</div>
+                        <div style={{ fontSize: 12, color: '#b91c1c', fontWeight: 600 }}>Failed</div>
+                      </div>
+                    </div>
+
+                    {/* Errors List */}
+                    {jobProgress.errors && jobProgress.errors.length > 0 && (
+                      <div style={{ marginTop: 8 }}>
+                        <h4 style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-2)', marginBottom: 8 }}>Row-level Errors / Warnings ({jobProgress.errors.length})</h4>
+                        <div style={{ maxHeight: 200, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 8, background: '#f8fafc' }}>
+                          <table className="data-table data-table-compact" style={{ margin: 0 }}>
+                            <thead>
+                              <tr>
+                                <th>Row Target</th>
+                                <th>Error Description</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {jobProgress.errors.map((err, idx) => (
+                                <tr key={idx}>
+                                  <td style={{ fontWeight: 600, fontSize: 12 }}><code style={{ background: '#e2e8f0', padding: '2px 4px', borderRadius: 4 }}>{err.row}</code></td>
+                                  <td style={{ color: 'var(--danger)', fontSize: 12 }}>{err.error}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Footer Controls */}
+                    {(jobProgress.status === 'completed' || jobProgress.status === 'failed') && (
+                      <div className="modal-footer" style={{ paddingLeft: 0, paddingRight: 0, paddingBottom: 0, marginTop: 12 }}>
+                        <button className="btn btn-primary" onClick={() => {
+                          setShowProgressModal(false)
+                          setJobProgress(null)
+                          fetchUsers()
+                          setActiveTab('faculty')
+                        }}>Done</button>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '24px 0', gap: 12 }}>
+                    <div className="spinner" />
+                    <span style={{ color: 'var(--text-3)', fontSize: 14, fontWeight: 600 }}>Uploading & parsing file...</span>
+                  </div>
+                )}
+              </Modal>
 
             </div>
           </div>
@@ -979,6 +1144,43 @@ export default function AdminDashboard() {
             </div>
           ))
         }
+      </Modal>
+
+      {/* Reset Database Confirmation Modal */}
+      <Modal open={isResetConfirmModalOpen} onClose={() => { setIsResetConfirmModalOpen(false); setResetConfirmationInput(''); }} title="Dangerous Action: Reset Database">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div style={{ background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.2)', padding: '14px', borderRadius: '12px', color: '#b91c1c', fontSize: '13.5px', lineHeight: 1.5 }}>
+            <strong>WARNING:</strong> This will permanently delete ALL students, faculty, batches, squads, documents, and timetable schedules. This action is irreversible.
+          </div>
+          <p style={{ fontSize: '13.5px', color: 'var(--text-2)', margin: 0 }}>
+            To confirm, please type <strong>RESET DATABASE</strong> in the input field below:
+          </p>
+          <input
+            className="input-field input-field-rect"
+            placeholder="RESET DATABASE"
+            value={resetConfirmationInput}
+            onChange={e => setResetConfirmationInput(e.target.value)}
+            style={{ marginBottom: 0 }}
+          />
+          <div className="modal-footer" style={{ paddingLeft: 0, paddingRight: 0, paddingBottom: 0, marginTop: 8 }}>
+            <button
+              type="button"
+              className="btn btn-outline"
+              onClick={() => { setIsResetConfirmModalOpen(false); setResetConfirmationInput(''); }}
+              disabled={isResetting}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="btn btn-danger"
+              onClick={handleResetDatabase}
+              disabled={resetConfirmationInput !== 'RESET DATABASE' || isResetting}
+            >
+              {isResetting ? 'Resetting...' : 'Permanently Reset Database'}
+            </button>
+          </div>
+        </div>
       </Modal>
 
       <div id="qr-reader-file-dummy" style={{ display: 'none' }} />

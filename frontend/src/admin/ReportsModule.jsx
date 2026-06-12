@@ -13,6 +13,44 @@ export default function ReportsModule({ token, toast }) {
   const [totalPages, setTotalPages] = useState(1)
   const [totalLogs, setTotalLogs] = useState(0)
 
+  const formatAction = (act) => {
+    if (!act) return ''
+    const mapping = {
+      BATCH_CREATED: 'Batch Created',
+      BATCH_UPDATED: 'Batch Updated',
+      BATCH_ARCHIVED: 'Batch Archived',
+      BATCH_RESTORED: 'Batch Restored',
+      STUDENT_AUTO_CREATED: 'Student Registered',
+      SQUAD_LEADER_UPDATED: 'Squad Leader Appointed',
+      FACULTY_ASSIGNED: 'Faculty Appointed',
+      FACULTY_REMOVED: 'Faculty Removed',
+      BULK_UPLOAD_COMPLETED: 'Bulk Ingestion Completed'
+    }
+    if (mapping[act]) return mapping[act]
+    return act.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, c => c.toUpperCase())
+  }
+
+  const formatDetails = (details) => {
+    if (!details) return '—'
+    let obj = details
+    if (typeof details === 'string') {
+      try {
+        obj = JSON.parse(details)
+      } catch {
+        return details
+      }
+    }
+    if (typeof obj === 'object' && obj !== null) {
+      return Object.entries(obj).map(([key, val]) => {
+        const readableKey = key.replace(/([A-Z])/g, ' $1').replace(/_/g, ' ').trim()
+        const cleanKey = readableKey.charAt(0).toUpperCase() + readableKey.slice(1).toLowerCase()
+        const readableVal = typeof val === 'object' && val !== null ? JSON.stringify(val) : String(val)
+        return `${cleanKey}: ${readableVal}`
+      }).join(', ')
+    }
+    return String(details)
+  }
+
   const fetchLogs = async (pg = 1) => {
     setLoading(true)
     try {
@@ -54,8 +92,8 @@ export default function ReportsModule({ token, toast }) {
     <div className="animate-fade-in">
       <div className="page-header">
         <div className="page-header-left">
-          <h2 className="page-title">Institutional Reports & Auditing</h2>
-          <p className="page-subtitle">View audit trails, generate performance indices, and manage institutional records</p>
+          <h2 className="page-title">Activity Logs & Reports</h2>
+          <p className="page-subtitle">Track system activity, view student attendance, and manage course completion certificates</p>
         </div>
       </div>
 
@@ -64,7 +102,7 @@ export default function ReportsModule({ token, toast }) {
           className={`tab-btn ${subTab === 'audit' ? 'active' : ''}`}
           onClick={() => setSubTab('audit')}
         >
-          <Shield size={14} /> Audit Trail
+          <Shield size={14} /> Activity Log
         </button>
         <button
           className={`tab-btn ${subTab === 'attendance' ? 'active' : ''}`}
@@ -82,32 +120,35 @@ export default function ReportsModule({ token, toast }) {
 
       {subTab === 'audit' && (
         <div className="glass-card animate-fade-in" style={{ padding: 24 }}>
-          <div style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap', alignItems: 'center' }}>
-            <div className="search-wrapper" style={{ margin: 0, flex: 1, minWidth: 200 }}>
+
+
+          <div className="students-filters-row">
+            <div className="search-wrapper">
               <Search className="search-icon" size={16} />
               <input
                 className="input-field"
-                placeholder="Search audit trail by user, details, entity..."
+                placeholder="Search history by user, details, or items..."
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 style={{ marginBottom: 0 }}
               />
             </div>
             <select
-              className="input-field"
+              className="input-field filter-select"
               value={actionFilter}
               onChange={e => setActionFilter(e.target.value)}
-              style={{ marginBottom: 0, width: 'auto', minWidth: 160, borderRadius: 50, fontSize: 13 }}
+              style={{ minWidth: 180 }}
             >
               <option value="">All Actions</option>
               <option value="BATCH_CREATED">Batch Creation</option>
               <option value="BATCH_UPDATED">Batch Update</option>
               <option value="BATCH_ARCHIVED">Batch Archive</option>
               <option value="BATCH_RESTORED">Batch Restore</option>
-              <option value="STUDENT_AUTO_CREATED">Student Auto-Creation</option>
+              <option value="STUDENT_AUTO_CREATED">Student Registered</option>
               <option value="SQUAD_LEADER_UPDATED">Squad Leader Update</option>
+              <option value="BULK_UPLOAD_COMPLETED">Bulk Ingestion Completed</option>
             </select>
-            <button className="btn btn-outline btn-sm" onClick={() => fetchLogs(page)}>
+            <button className="btn btn-outline" style={{ height: 42, padding: '0 14px', borderRadius: 50 }} onClick={() => fetchLogs(page)} title="Refresh Logs">
               <RefreshCw size={14} />
             </button>
           </div>
@@ -116,11 +157,11 @@ export default function ReportsModule({ token, toast }) {
             <table className="data-table">
               <thead>
                 <tr>
-                  <th>Timestamp</th>
-                  <th>Action</th>
-                  <th>Performed By</th>
-                  <th>Entity Type / ID</th>
-                  <th>Details</th>
+                  <th>Date & Time</th>
+                  <th>Action Taken</th>
+                  <th>Done By</th>
+                  <th>Item Affected</th>
+                  <th>Changes Made</th>
                 </tr>
               </thead>
               <tbody>
@@ -137,7 +178,7 @@ export default function ReportsModule({ token, toast }) {
                     <td colSpan={5}>
                       <div className="empty-state" style={{ padding: '30px 0' }}>
                         <Shield size={36} />
-                        <p>No audit logs matching filters.</p>
+                        <p>No activity logs match your filters.</p>
                       </div>
                     </td>
                   </tr>
@@ -163,21 +204,21 @@ export default function ReportsModule({ token, toast }) {
                           }`}
                           style={{ fontSize: 11, fontWeight: 700 }}
                         >
-                          {log.action}
+                          {formatAction(log.action)}
                         </span>
                       </td>
                       <td style={{ fontWeight: 600 }}>{log.user_name || 'System'}</td>
-                      <td style={{ fontSize: 12 }}>
+                      <td style={{ fontSize: 12, color: 'var(--text-2)' }}>
                         {log.entity_type ? (
                           <span style={{ textTransform: 'capitalize' }}>
-                            {log.entity_type} (ID: {log.entity_id})
+                            {log.entity_type.replace(/_/g, ' ')} (ID: {log.entity_id})
                           </span>
                         ) : (
                           '—'
                         )}
                       </td>
                       <td style={{ fontSize: 12.5, color: 'var(--text-3)' }}>
-                        {log.details ? JSON.stringify(log.details) : '—'}
+                        {formatDetails(log.details)}
                       </td>
                     </tr>
                   ))

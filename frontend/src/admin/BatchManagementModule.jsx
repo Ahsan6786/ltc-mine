@@ -175,6 +175,8 @@ function BatchStudentsTab({ batchId, token, toast }) {
   const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [jobProgress, setJobProgress] = useState(null)
+  const [showProgressModal, setShowProgressModal] = useState(false)
 
   const fetchStudents = useCallback(async (pg = 1, q = search) => {
     setLoading(true)
@@ -223,18 +225,63 @@ function BatchStudentsTab({ batchId, token, toast }) {
   }
 
   const processBulkUpload = async (records) => {
-    setUploading(true)
+    setUploading(true);
+    setShowProgressModal(true);
+    setJobProgress(null);
+    
     try {
       const res = await fetch(`${API}/api/admin/batches/${batchId}/bulk-upload`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ records })
-      })
-      const data = await res.json()
-      toast(`${data.studentsAdded} students added. ${data.notFound} not matched (or newly created).`, data.notFound > 0 ? 'warning' : 'success')
-      fetchStudents(1, search)
-    } finally { setUploading(false) }
-  }
+      });
+      const data = await res.json();
+      
+      if (!res.ok) {
+        throw new Error(data.message || 'Failed to start bulk upload.');
+      }
+
+      const jobId = data.jobId;
+      
+      const intervalId = setInterval(async () => {
+        try {
+          const pollRes = await fetch(`${API}/api/admin/upload-jobs/${jobId}`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          const pollData = await pollRes.json();
+          
+          if (pollRes.ok && pollData.job) {
+            setJobProgress(pollData.job);
+            
+            if (pollData.job.status === 'completed' || pollData.job.status === 'failed') {
+              clearInterval(intervalId);
+              setUploading(false);
+              if (pollData.job.status === 'completed') {
+                toast(`Bulk upload finished! Success: ${pollData.job.success_count}, Failed: ${pollData.job.failed_count}`, 'success');
+              } else {
+                toast('Bulk upload job failed.', 'error');
+              }
+            }
+          } else {
+            clearInterval(intervalId);
+            setUploading(false);
+            toast('Failed to query upload status.', 'error');
+            setShowProgressModal(false);
+          }
+        } catch (err) {
+          clearInterval(intervalId);
+          setUploading(false);
+          toast('Polling status error: ' + err.message, 'error');
+          setShowProgressModal(false);
+        }
+      }, 750);
+      
+    } catch (err) {
+      setUploading(false);
+      setShowProgressModal(false);
+      toast(err.message || 'Upload error', 'error');
+    }
+  };
 
   const handleExport = () => {
     const ws = XLSX.utils.json_to_sheet(students.map(s => ({
@@ -315,6 +362,91 @@ function BatchStudentsTab({ batchId, token, toast }) {
         </table>
       </div>
       <Pagination pagination={pagination} onPageChange={p => { setPage(p); fetchStudents(p, search) }} />
+
+      <Modal open={showProgressModal} onClose={() => {
+        if (jobProgress && (jobProgress.status === 'completed' || jobProgress.status === 'failed')) {
+          setShowProgressModal(false);
+          setJobProgress(null);
+        }
+      }} title="Bulk Upload Progress" size="lg">
+        {jobProgress ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontWeight: 600, color: 'var(--text)' }}>
+                {jobProgress.status === 'processing' ? 'Processing records...' :
+                 jobProgress.status === 'completed' ? 'Upload Completed!' :
+                 jobProgress.status === 'failed' ? 'Upload Failed' : 'Initializing...'}
+              </span>
+              <span style={{ fontSize: 13, color: 'var(--text-3)' }}>
+                {jobProgress.processed_records} / {jobProgress.total_records}
+              </span>
+            </div>
+
+            {/* Progress Bar */}
+            <div style={{ width: '100%', height: 8, background: '#e2e8f0', borderRadius: 4, overflow: 'hidden' }}>
+              <div style={{
+                width: `${jobProgress.total_records > 0 ? (jobProgress.processed_records / jobProgress.total_records) * 100 : 0}%`,
+                height: '100%',
+                background: jobProgress.status === 'failed' ? 'var(--danger)' : 'var(--primary)',
+                transition: 'width 0.4s ease'
+              }} />
+            </div>
+
+            {/* Stats Counter */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', padding: 12, borderRadius: 8, textAlign: 'center' }}>
+                <div style={{ fontSize: 18, fontWeight: 800, color: '#166534' }}>{jobProgress.success_count}</div>
+                <div style={{ fontSize: 12, color: '#15803d', fontWeight: 600 }}>Success</div>
+              </div>
+              <div style={{ background: '#fef2f2', border: '1px solid #fecaca', padding: 12, borderRadius: 8, textAlign: 'center' }}>
+                <div style={{ fontSize: 18, fontWeight: 800, color: '#991b1b' }}>{jobProgress.failed_count}</div>
+                <div style={{ fontSize: 12, color: '#b91c1c', fontWeight: 600 }}>Failed</div>
+              </div>
+            </div>
+
+            {/* Errors List */}
+            {jobProgress.errors && jobProgress.errors.length > 0 && (
+              <div style={{ marginTop: 8 }}>
+                <h4 style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-2)', marginBottom: 8 }}>Row-level Errors / Warnings ({jobProgress.errors.length})</h4>
+                <div style={{ maxHeight: 200, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 8, background: '#f8fafc' }}>
+                  <table className="data-table data-table-compact" style={{ margin: 0 }}>
+                    <thead>
+                      <tr>
+                        <th>Row Target</th>
+                        <th>Error Description</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {jobProgress.errors.map((err, idx) => (
+                        <tr key={idx}>
+                          <td style={{ fontWeight: 600, fontSize: 12 }}><code style={{ background: '#e2e8f0', padding: '2px 4px', borderRadius: 4 }}>{err.row}</code></td>
+                          <td style={{ color: 'var(--danger)', fontSize: 12 }}>{err.error}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* Footer Controls */}
+            {(jobProgress.status === 'completed' || jobProgress.status === 'failed') && (
+              <div className="modal-footer" style={{ paddingLeft: 0, paddingRight: 0, paddingBottom: 0, marginTop: 12 }}>
+                <button className="btn btn-primary" onClick={() => {
+                  setShowProgressModal(false);
+                  setJobProgress(null);
+                  fetchStudents(1, search);
+                }}>Done</button>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '24px 0', gap: 12 }}>
+            <div className="spinner" />
+            <span style={{ color: 'var(--text-3)', fontSize: 14, fontWeight: 600 }}>Uploading & parsing file...</span>
+          </div>
+        )}
+      </Modal>
     </div>
   )
 }
@@ -781,7 +913,7 @@ export default function BatchManagementModule({ token }) {
         </div>
       </div>
 
-      <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)', marginBottom: 24 }}>
+      <div className="stats-grid" style={{ marginBottom: 24 }}>
         {[
           { label: 'Total Batches', value: batches.length, color: 'var(--primary)' },
           { label: 'Active', value: batches.filter(b => b.status === 'active').length, color: 'var(--success)' },
@@ -823,7 +955,7 @@ export default function BatchManagementModule({ token }) {
       ) : (
         <div className="batches-grid">
           {filtered.map(b => (
-            <div key={b.id} className="batch-card" onClick={() => setSelectedBatch(b)}>
+            <div key={b.id} className={`batch-card status-card-${b.status}`} onClick={() => setSelectedBatch(b)}>
               <div className="batch-card-header" style={{ width: '100%' }}>
                 <div className="batch-card-title-row">
                   <h3 className="batch-title-text">{b.name}</h3>
@@ -857,11 +989,11 @@ export default function BatchManagementModule({ token }) {
 
               <div className="batch-card-footer">
                 <div className="batch-card-metrics">
-                  <div className="metric-pill">
+                  <div className="metric-pill students-pill">
                     <span className="metric-val">{b.student_count}{b.capacity ? ` / ${b.capacity}` : ''}</span>
                     <span className="metric-lbl">Students</span>
                   </div>
-                  <div className="metric-pill">
+                  <div className="metric-pill faculty-pill">
                     <span className="metric-val">{b.faculty_count}</span>
                     <span className="metric-lbl">Faculty</span>
                   </div>
@@ -871,10 +1003,10 @@ export default function BatchManagementModule({ token }) {
                   <button className="btn btn-sm btn-open" onClick={() => setSelectedBatch(b)}>
                     Open Batch
                   </button>
-                  <button className="btn btn-outline btn-sm" onClick={() => setEditBatch({ ...b, start_date: b.start_date?.split('T')[0], end_date: b.end_date?.split('T')[0] })}>
+                  <button className="btn-action-icon" onClick={() => setEditBatch({ ...b, start_date: b.start_date?.split('T')[0], end_date: b.end_date?.split('T')[0] })} title="Edit Batch">
                     <Edit2 size={13} />
                   </button>
-                  <button className="btn btn-outline btn-sm btn-del" onClick={() => handleDelete(b)}>
+                  <button className="btn-action-icon btn-del-icon" onClick={() => handleDelete(b)} title="Delete Batch">
                     <Trash2 size={13} />
                   </button>
                 </div>
