@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import React, { useState, useEffect, useCallback, useMemo, useRef, lazy, Suspense } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Plus, Users, UploadCloud, GraduationCap, BookOpen, CheckCircle,
@@ -14,13 +14,12 @@ import { Html5QrcodeScanner, Html5Qrcode } from 'html5-qrcode'
 import ScrollToTop from './ScrollToTop'
 import TimetablePanel from './TimetablePanel'
 
-// Sub-modules import
-import FacultyModule from './admin/FacultyModule'
-import StudentsModule from './admin/StudentsModule'
-import BatchManagementModule from './admin/BatchManagementModule'
-
-import DocumentsModule from './admin/DocumentsModule'
-import ReportsModule from './admin/ReportsModule'
+// Sub-modules: lazy-loaded so they only download when the admin navigates to that tab
+const FacultyModule = lazy(() => import('./admin/FacultyModule'))
+const StudentsModule = lazy(() => import('./admin/StudentsModule'))
+const BatchManagementModule = lazy(() => import('./admin/BatchManagementModule'))
+const DocumentsModule = lazy(() => import('./admin/DocumentsModule'))
+const ReportsModule = lazy(() => import('./admin/ReportsModule'))
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:5001'
 const SQUAD_NAMES = ['Surya', 'Chandra', 'Mangal', 'Budh', 'Guru', 'Shukra', 'Shani', 'Rahu', 'Ketu', 'Agni']
@@ -912,50 +911,54 @@ export default function AdminDashboard() {
 
         <div className="mobile-people-content">
           {mobilePeopleTab === 'faculty' && (
-            <FacultyModule
-              faculties={faculties}
-              facultyPg={facultyPg}
-              facultySearch={facultySearch}
-              setFacultySearch={setFacultySearch}
-              setIsFacultyModalOpen={setIsFacultyModalOpen}
-              handleUpdatePanel={handleUpdatePanel}
-              handleViewFeedback={handleViewFeedback}
-              handleDeleteUser={handleDeleteUser}
-              fetchUsers={fetchUsers}
-              PaginationBar={PaginationBar}
-              hideTitle={true}
-            />
+            <Suspense fallback={<div style={{padding:24,textAlign:'center',color:'var(--text-3)'}}>Loading…</div>}>
+              <FacultyModule
+                faculties={faculties}
+                facultyPg={facultyPg}
+                facultySearch={facultySearch}
+                setFacultySearch={setFacultySearch}
+                setIsFacultyModalOpen={setIsFacultyModalOpen}
+                handleUpdatePanel={handleUpdatePanel}
+                handleViewFeedback={handleViewFeedback}
+                handleDeleteUser={handleDeleteUser}
+                fetchUsers={fetchUsers}
+                PaginationBar={PaginationBar}
+                hideTitle={true}
+              />
+            </Suspense>
           )}
 
           {mobilePeopleTab === 'students' && (
-            <StudentsModule
-              users={users}
-              students={students}
-              studentPg={studentPg}
-              studentSearch={studentSearch}
-              setStudentSearch={setStudentSearch}
-              selectedSchool={selectedSchool}
-              setSelectedSchool={setSelectedSchool}
-              selectedDepartment={selectedDepartment}
-              setSelectedDepartment={setSelectedDepartment}
-              selectedDivision={selectedDivision}
-              setSelectedDivision={setSelectedDivision}
-              selectedPanel={selectedPanel}
-              setSelectedPanel={setSelectedPanel}
-              availableSchools={availableSchools}
-              availableDepartments={availableDepartments}
-              availableDivisions={availableDivisions}
-              availablePanels={availablePanels}
-              setIsStudentModalOpen={setIsStudentModalOpen}
-              handleUpdatePanel={handleUpdatePanel}
-              handleUpdateInsurance={handleUpdateInsurance}
-              handleToggleStudentBatch={handleToggleStudentBatch}
-              handleViewFeedback={handleViewFeedback}
-              handleDeleteUser={handleDeleteUser}
-              fetchUsers={fetchUsers}
-              PaginationBar={PaginationBar}
-              hideTitle={true}
-            />
+            <Suspense fallback={<div style={{padding:24,textAlign:'center',color:'var(--text-3)'}}>Loading…</div>}>
+              <StudentsModule
+                users={users}
+                students={students}
+                studentPg={studentPg}
+                studentSearch={studentSearch}
+                setStudentSearch={setStudentSearch}
+                selectedSchool={selectedSchool}
+                setSelectedSchool={setSelectedSchool}
+                selectedDepartment={selectedDepartment}
+                setSelectedDepartment={setSelectedDepartment}
+                selectedDivision={selectedDivision}
+                setSelectedDivision={setSelectedDivision}
+                selectedPanel={selectedPanel}
+                setSelectedPanel={setSelectedPanel}
+                availableSchools={availableSchools}
+                availableDepartments={availableDepartments}
+                availableDivisions={availableDivisions}
+                availablePanels={availablePanels}
+                setIsStudentModalOpen={setIsStudentModalOpen}
+                handleUpdatePanel={handleUpdatePanel}
+                handleUpdateInsurance={handleUpdateInsurance}
+                handleToggleStudentBatch={handleToggleStudentBatch}
+                handleViewFeedback={handleViewFeedback}
+                handleDeleteUser={handleDeleteUser}
+                fetchUsers={fetchUsers}
+                PaginationBar={PaginationBar}
+                hideTitle={true}
+              />
+            </Suspense>
           )}
 
           {mobilePeopleTab === 'ltcmembers' && (
@@ -1039,16 +1042,22 @@ export default function AdminDashboard() {
 
         {mobileSubTool === 'timetable' && <TimetablePanel />}
         {mobileSubTool === 'documents' && (
-          <DocumentsModule
-            documents={documents}
-            docForm={docForm}
-            setDocForm={setDocForm}
-            handleUploadDocument={handleUploadDocument}
-            handleDeleteDocument={handleDeleteDocument}
-            Label={Label}
-          />
+          <Suspense fallback={<div style={{padding:24,textAlign:'center',color:'var(--text-3)'}}>Loading…</div>}>
+            <DocumentsModule
+              documents={documents}
+              docForm={docForm}
+              setDocForm={setDocForm}
+              handleUploadDocument={handleUploadDocument}
+              handleDeleteDocument={handleDeleteDocument}
+              Label={Label}
+            />
+          </Suspense>
         )}
-        {mobileSubTool === 'reports' && <ReportsModule token={token} toast={toast} />}
+        {mobileSubTool === 'reports' && (
+          <Suspense fallback={<div style={{padding:24,textAlign:'center',color:'var(--text-3)'}}>Loading…</div>}>
+            <ReportsModule token={token} toast={toast} />
+          </Suspense>
+        )}
         {mobileSubTool === 'bulk' && (
           <div className="animate-fade-in">
             <div className="glass-card" style={{ padding: '20px' }}>
@@ -1531,62 +1540,68 @@ export default function AdminDashboard() {
             {activeTab === 'dashboard' && renderDashboardHomepage()}
             {activeTab === 'timetable' && <TimetablePanel />}
             {activeTab === 'batches' && (
-              <BatchManagementModule token={token} onBatchesChange={refreshAllData} />
+              <Suspense fallback={<div style={{padding:40,textAlign:'center',color:'var(--text-3)'}}>Loading…</div>}>
+                <BatchManagementModule token={token} onBatchesChange={refreshAllData} />
+              </Suspense>
             )}
             {activeTab === 'faculty' && (
-              <FacultyModule
-                faculties={faculties}
-                facultyPg={facultyPg}
-                facultySearch={facultySearch}
-                setFacultySearch={setFacultySearch}
-                setIsFacultyModalOpen={setIsFacultyModalOpen}
-                handleUpdatePanel={handleUpdatePanel}
-                handleViewFeedback={handleViewFeedback}
-                handleDeleteUser={handleDeleteUser}
-                fetchUsers={fetchUsers}
-                PaginationBar={PaginationBar}
-                isDesktop={true}
-                facultyDivFilter={facultyDivFilter}
-                setFacultyDivFilter={setFacultyDivFilter}
-                facultyDeptFilter={facultyDeptFilter}
-                setFacultyDeptFilter={setFacultyDeptFilter}
-                facultyTypeFilter={facultyTypeFilter}
-                setFacultyTypeFilter={setFacultyTypeFilter}
-                availableFacultyDivisions={availableFacultyDivisions}
-                availableFacultyDepartments={availableFacultyDepartments}
-                apiFetch={apiFetch}
-                toast={toast}
-              />
-            )}
-            {activeTab === 'students' && (
-              <div className="desktop-card">
-                <StudentsModule
-                  users={users}
-                  students={students}
-                  studentPg={studentPg}
-                  studentSearch={studentSearch}
-                  setStudentSearch={setStudentSearch}
-                  selectedSchool={selectedSchool}
-                  setSelectedSchool={setSelectedSchool}
-                  selectedDepartment={selectedDepartment}
-                  setSelectedDepartment={setSelectedDepartment}
-                  selectedDivision={selectedDivision}
-                  setSelectedDivision={setSelectedDivision}
-                  selectedPanel={selectedPanel}
-                  setSelectedPanel={setSelectedPanel}
-                  availableSchools={availableSchools}
-                  availableDepartments={availableDepartments}
-                  availableDivisions={availableDivisions}
-                  availablePanels={availablePanels}
-                  setIsStudentModalOpen={setIsStudentModalOpen}
+              <Suspense fallback={<div style={{padding:40,textAlign:'center',color:'var(--text-3)'}}>Loading…</div>}>
+                <FacultyModule
+                  faculties={faculties}
+                  facultyPg={facultyPg}
+                  facultySearch={facultySearch}
+                  setFacultySearch={setFacultySearch}
+                  setIsFacultyModalOpen={setIsFacultyModalOpen}
                   handleUpdatePanel={handleUpdatePanel}
-                  handleUpdateInsurance={handleUpdateInsurance}
-                  handleToggleStudentBatch={handleToggleStudentBatch}
                   handleViewFeedback={handleViewFeedback}
                   handleDeleteUser={handleDeleteUser}
                   fetchUsers={fetchUsers}
                   PaginationBar={PaginationBar}
+                  isDesktop={true}
+                  facultyDivFilter={facultyDivFilter}
+                  setFacultyDivFilter={setFacultyDivFilter}
+                  facultyDeptFilter={facultyDeptFilter}
+                  setFacultyDeptFilter={setFacultyDeptFilter}
+                  facultyTypeFilter={facultyTypeFilter}
+                  setFacultyTypeFilter={setFacultyTypeFilter}
+                  availableFacultyDivisions={availableFacultyDivisions}
+                  availableFacultyDepartments={availableFacultyDepartments}
+                  apiFetch={apiFetch}
+                  toast={toast}
                 />
+              </Suspense>
+            )}
+            {activeTab === 'students' && (
+              <div className="desktop-card">
+                <Suspense fallback={<div style={{padding:40,textAlign:'center',color:'var(--text-3)'}}>Loading…</div>}>
+                  <StudentsModule
+                    users={users}
+                    students={students}
+                    studentPg={studentPg}
+                    studentSearch={studentSearch}
+                    setStudentSearch={setStudentSearch}
+                    selectedSchool={selectedSchool}
+                    setSelectedSchool={setSelectedSchool}
+                    selectedDepartment={selectedDepartment}
+                    setSelectedDepartment={setSelectedDepartment}
+                    selectedDivision={selectedDivision}
+                    setSelectedDivision={setSelectedDivision}
+                    selectedPanel={selectedPanel}
+                    setSelectedPanel={setSelectedPanel}
+                    availableSchools={availableSchools}
+                    availableDepartments={availableDepartments}
+                    availableDivisions={availableDivisions}
+                    availablePanels={availablePanels}
+                    setIsStudentModalOpen={setIsStudentModalOpen}
+                    handleUpdatePanel={handleUpdatePanel}
+                    handleUpdateInsurance={handleUpdateInsurance}
+                    handleToggleStudentBatch={handleToggleStudentBatch}
+                    handleViewFeedback={handleViewFeedback}
+                    handleDeleteUser={handleDeleteUser}
+                    fetchUsers={fetchUsers}
+                    PaginationBar={PaginationBar}
+                  />
+                </Suspense>
               </div>
             )}
             {activeTab === 'ltcmembers' && (
@@ -1676,19 +1691,23 @@ export default function AdminDashboard() {
             )}
             {activeTab === 'documents' && (
               <div className="desktop-card">
-                <DocumentsModule
-                  documents={documents}
-                  docForm={docForm}
-                  setDocForm={setDocForm}
-                  handleUploadDocument={handleUploadDocument}
-                  handleDeleteDocument={handleDeleteDocument}
-                  Label={Label}
-                />
+                <Suspense fallback={<div style={{padding:40,textAlign:'center',color:'var(--text-3)'}}>Loading…</div>}>
+                  <DocumentsModule
+                    documents={documents}
+                    docForm={docForm}
+                    setDocForm={setDocForm}
+                    handleUploadDocument={handleUploadDocument}
+                    handleDeleteDocument={handleDeleteDocument}
+                    Label={Label}
+                  />
+                </Suspense>
               </div>
             )}
             {activeTab === 'reports' && (
               <div className="desktop-card">
-                <ReportsModule token={token} toast={toast} />
+                <Suspense fallback={<div style={{padding:40,textAlign:'center',color:'var(--text-3)'}}>Loading…</div>}>
+                  <ReportsModule token={token} toast={toast} />
+                </Suspense>
               </div>
             )}
           </div>
@@ -1861,58 +1880,64 @@ export default function AdminDashboard() {
               {/* ── Batch Management ── */}
               {activeTab === 'batches' && (
                 <div className="mobile-batches-wrapper animate-fade-in" style={{ padding: '0 16px' }}>
-                  <BatchManagementModule token={token} onBatchesChange={refreshAllData} />
+                  <Suspense fallback={<div style={{padding:40,textAlign:'center',color:'var(--text-3)'}}>Loading…</div>}>
+                    <BatchManagementModule token={token} onBatchesChange={refreshAllData} />
+                  </Suspense>
                 </div>
               )}
 
               {/* ── Master Faculty Tab ── */}
               {activeTab === 'faculty' && (
                 <div className="animate-fade-in" style={{ padding: '0 16px' }}>
-                  <FacultyModule
-                    faculties={faculties}
-                    facultyPg={facultyPg}
-                    facultySearch={facultySearch}
-                    setFacultySearch={setFacultySearch}
-                    setIsFacultyModalOpen={setIsFacultyModalOpen}
-                    handleUpdatePanel={handleUpdatePanel}
-                    handleViewFeedback={handleViewFeedback}
-                    handleDeleteUser={handleDeleteUser}
-                    fetchUsers={fetchUsers}
-                    PaginationBar={PaginationBar}
-                  />
+                  <Suspense fallback={<div style={{padding:40,textAlign:'center',color:'var(--text-3)'}}>Loading…</div>}>
+                    <FacultyModule
+                      faculties={faculties}
+                      facultyPg={facultyPg}
+                      facultySearch={facultySearch}
+                      setFacultySearch={setFacultySearch}
+                      setIsFacultyModalOpen={setIsFacultyModalOpen}
+                      handleUpdatePanel={handleUpdatePanel}
+                      handleViewFeedback={handleViewFeedback}
+                      handleDeleteUser={handleDeleteUser}
+                      fetchUsers={fetchUsers}
+                      PaginationBar={PaginationBar}
+                    />
+                  </Suspense>
                 </div>
               )}
 
               {/* ── Master Students Tab ── */}
               {activeTab === 'students' && (
                 <div className="animate-fade-in" style={{ padding: '0 16px' }}>
-                  <StudentsModule
-                    users={users}
-                    students={students}
-                    studentPg={studentPg}
-                    studentSearch={studentSearch}
-                    setStudentSearch={setStudentSearch}
-                    selectedSchool={selectedSchool}
-                    setSelectedSchool={setSelectedSchool}
-                    selectedDepartment={selectedDepartment}
-                    setSelectedDepartment={setSelectedDepartment}
-                    selectedDivision={selectedDivision}
-                    setSelectedDivision={setSelectedDivision}
-                    selectedPanel={selectedPanel}
-                    setSelectedPanel={setSelectedPanel}
-                    availableSchools={availableSchools}
-                    availableDepartments={availableDepartments}
-                    availableDivisions={availableDivisions}
-                    availablePanels={availablePanels}
-                    setIsStudentModalOpen={setIsStudentModalOpen}
-                    handleUpdatePanel={handleUpdatePanel}
-                    handleUpdateInsurance={handleUpdateInsurance}
-                    handleToggleStudentBatch={handleToggleStudentBatch}
-                    handleViewFeedback={handleViewFeedback}
-                    handleDeleteUser={handleDeleteUser}
-                    fetchUsers={fetchUsers}
-                    PaginationBar={PaginationBar}
-                  />
+                  <Suspense fallback={<div style={{padding:40,textAlign:'center',color:'var(--text-3)'}}>Loading…</div>}>
+                    <StudentsModule
+                      users={users}
+                      students={students}
+                      studentPg={studentPg}
+                      studentSearch={studentSearch}
+                      setStudentSearch={setStudentSearch}
+                      selectedSchool={selectedSchool}
+                      setSelectedSchool={setSelectedSchool}
+                      selectedDepartment={selectedDepartment}
+                      setSelectedDepartment={setSelectedDepartment}
+                      selectedDivision={selectedDivision}
+                      setSelectedDivision={setSelectedDivision}
+                      selectedPanel={selectedPanel}
+                      setSelectedPanel={setSelectedPanel}
+                      availableSchools={availableSchools}
+                      availableDepartments={availableDepartments}
+                      availableDivisions={availableDivisions}
+                      availablePanels={availablePanels}
+                      setIsStudentModalOpen={setIsStudentModalOpen}
+                      handleUpdatePanel={handleUpdatePanel}
+                      handleUpdateInsurance={handleUpdateInsurance}
+                      handleToggleStudentBatch={handleToggleStudentBatch}
+                      handleViewFeedback={handleViewFeedback}
+                      handleDeleteUser={handleDeleteUser}
+                      fetchUsers={fetchUsers}
+                      PaginationBar={PaginationBar}
+                    />
+                  </Suspense>
                 </div>
               )}
 

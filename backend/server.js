@@ -4,6 +4,7 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const { Pool } = require('pg');
 const nodemailer = require('nodemailer');
+const helmet = require('helmet');
 
 require('dotenv').config();
 
@@ -27,13 +28,25 @@ const corsOptions = {
   allowedHeaders: ["Content-Type","Authorization"]
 };
 
+// HTTP security headers (removes X-Powered-By, adds X-Content-Type-Options, etc.)
+app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors(corsOptions));
 app.options("*", cors(corsOptions));
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ limit: '50mb', extended: true }));
+// Use 1MB limit globally; bulk upload routes get 50MB below
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ limit: '1mb', extended: true }));
 
 const PORT = process.env.PORT || 5001;
-const SECRET = 'ltc-super-secret-key-for-now';
+// JWT secret must come from environment variable
+const SECRET = process.env.JWT_SECRET;
+if (!SECRET) {
+  if (process.env.NODE_ENV === 'production') {
+    console.error('FATAL: JWT_SECRET env var is not set. Refusing to start.');
+    process.exit(1);
+  } else {
+    console.warn('[WARN] JWT_SECRET not set. Using insecure dev fallback. Set JWT_SECRET in .env before production.');
+  }
+}
 
 const poolConfig = {
   user: process.env.DB_USER || 'postgres',
@@ -41,6 +54,10 @@ const poolConfig = {
   database: process.env.DB_DATABASE || 'ltc_db',
   password: process.env.DB_PASSWORD || 'root',
   port: parseInt(process.env.DB_PORT || '5432'),
+  // Connection pool limits to prevent exhaustion under load
+  max: parseInt(process.env.DB_POOL_MAX || '20'),
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 5000,
 };
 
 if (process.env.DB_SSL === 'true') {
@@ -1390,7 +1407,8 @@ const processUploadJobInBackground = async (jobId, records, batchId = null, isBa
 };
 
 // Batch Bulk Upload (auto-detect students/faculty) - BACKGROUND PROCESSOR
-app.post('/api/admin/batches/:id/bulk-upload', authMiddleware(['admin']), async (req, res) => {
+// Override body limit to 50MB for this specific route
+app.post('/api/admin/batches/:id/bulk-upload', express.json({ limit: '50mb' }), authMiddleware(['admin']), async (req, res) => {
   const { id } = req.params;
   const { records, duplicateAction } = req.body;
 
@@ -1889,7 +1907,8 @@ app.post('/api/admin/bulk-upload/validate', authMiddleware(['admin']), async (re
 });
 
 // Bulk Upload (global, not batch-specific)
-app.post('/api/admin/bulk-upload', authMiddleware(['admin']), async (req, res) => {
+// Override body limit to 50MB for this specific route
+app.post('/api/admin/bulk-upload', express.json({ limit: '50mb' }), authMiddleware(['admin']), async (req, res) => {
   const { users, duplicateAction } = req.body;
   if (!Array.isArray(users) || users.length === 0) {
     return res.status(400).json({ message: 'users must be a non-empty array' });
@@ -2341,11 +2360,17 @@ app.get('/api/admin/audit-logs', authMiddleware(['admin']), async (req, res) => 
 // LTC Member Dashboard
 app.get('/api/ltc/dashboard', authMiddleware(['ltc_member']), async (req, res) => {
   try {
-    const totalStudentsRes = await pool.query("SELECT COUNT(*) FROM users WHERE role = 'student'");
-    const totalSquadsRes = await pool.query("SELECT COUNT(DISTINCT squad) FROM users WHERE role = 'student' AND squad IS NOT NULL");
-    const totalRoomsRes = await pool.query("SELECT COUNT(DISTINCT room) FROM users WHERE role = 'student' AND room IS NOT NULL");
-    const nriCountRes = await pool.query("SELECT COUNT(*) FROM users WHERE role = 'student' AND nri = true");
-    const redFlagCountRes = await pool.query("SELECT COUNT(*) FROM users WHERE role = 'student' AND red_flag = true");
+    // Single aggregated query instead of 5 separate COUNT(*) round-trips
+    const statsRes = await pool.query(`
+      SELECT
+        COUNT(*) FILTER (WHERE role = 'student') AS total_students,
+        COUNT(DISTINCT squad) FILTER (WHERE role = 'student' AND squad IS NOT NULL) AS total_squads,
+        COUNT(DISTINCT room) FILTER (WHERE role = 'student' AND room IS NOT NULL) AS total_rooms,
+        COUNT(*) FILTER (WHERE role = 'student' AND nri = true) AS nri_count,
+        COUNT(*) FILTER (WHERE role = 'student' AND red_flag = true) AS red_flag_count
+      FROM users
+    `);
+    const s = statsRes.rows[0];
     const studentsRes = await pool.query(
       "SELECT id, name, email, semester, department, division, school, panel, squad, room, barcode, nri, red_flag, is_squad_leader, phone, prn, gender FROM users WHERE role = 'student' ORDER BY id ASC"
     );
@@ -2353,11 +2378,11 @@ app.get('/api/ltc/dashboard', authMiddleware(['ltc_member']), async (req, res) =
     const squadLeadersRes = await pool.query("SELECT * FROM squad_leaders");
     res.json({
       stats: {
-        totalStudents: parseInt(totalStudentsRes.rows[0].count),
-        totalSquads: parseInt(totalSquadsRes.rows[0].count),
-        totalRooms: parseInt(totalRoomsRes.rows[0].count),
-        nriCount: parseInt(nriCountRes.rows[0].count),
-        redFlagCount: parseInt(redFlagCountRes.rows[0].count),
+        totalStudents: parseInt(s.total_students),
+        totalSquads: parseInt(s.total_squads),
+        totalRooms: parseInt(s.total_rooms),
+        nriCount: parseInt(s.nri_count),
+        redFlagCount: parseInt(s.red_flag_count),
       },
       students: studentsRes.rows,
       documents: docRes.rows,
