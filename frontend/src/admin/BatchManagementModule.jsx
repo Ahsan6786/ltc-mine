@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
-import { Plus, Users, GraduationCap, MapPin, Calendar, ChevronRight, Edit2, Trash2, Upload, Download, Search, X, CheckCircle, AlertCircle, RefreshCw, Lock, Unlock, UserCheck, UserX, Shield, ChevronLeft, ChevronDown, FileText } from 'lucide-react'
+import { Plus, Users, GraduationCap, MapPin, Calendar, ChevronRight, Edit2, Trash2, Upload, Download, Search, X, CheckCircle, AlertCircle, RefreshCw, Lock, Unlock, UserCheck, UserX, Shield, ChevronLeft, ChevronDown, FileText, Layers, Bell } from 'lucide-react'
 import Papa from 'papaparse'
 import * as XLSX from 'xlsx'
 
@@ -177,6 +177,9 @@ function BatchStudentsTab({ batchId, token, toast }) {
   const [uploading, setUploading] = useState(false)
   const [jobProgress, setJobProgress] = useState(null)
   const [showProgressModal, setShowProgressModal] = useState(false)
+  const [showDuplicateModal, setShowDuplicateModal] = useState(false)
+  const [duplicateRecords, setDuplicateRecords] = useState([])
+  const [pendingBulkUsers, setPendingBulkUsers] = useState([])
 
   const fetchStudents = useCallback(async (pg = 1, q = search) => {
     setLoading(true)
@@ -226,14 +229,41 @@ function BatchStudentsTab({ batchId, token, toast }) {
 
   const processBulkUpload = async (records) => {
     setUploading(true);
+    
+    try {
+      const checkRes = await fetch(`${API}/api/admin/bulk-upload/validate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ users: records })
+      });
+      if (!checkRes) throw new Error('Validation failed.');
+      const checkData = await checkRes.json();
+
+      if (checkRes.ok && checkData.duplicates && checkData.duplicates.length > 0) {
+        setDuplicateRecords(checkData.duplicates);
+        setPendingBulkUsers(records);
+        setShowDuplicateModal(true);
+        setUploading(false);
+        return;
+      }
+
+      await executeBatchIngestion(records, 'replace');
+    } catch (err) {
+      setUploading(false);
+      toast(err.message || 'Validation error', 'error');
+    }
+  };
+
+  const executeBatchIngestion = async (records, duplicateAction) => {
+    setUploading(true);
     setShowProgressModal(true);
     setJobProgress(null);
-    
+
     try {
       const res = await fetch(`${API}/api/admin/batches/${batchId}/bulk-upload`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ records })
+        body: JSON.stringify({ records, duplicateAction })
       });
       const data = await res.json();
       
@@ -258,6 +288,7 @@ function BatchStudentsTab({ batchId, token, toast }) {
               setUploading(false);
               if (pollData.job.status === 'completed') {
                 toast(`Bulk upload finished! Success: ${pollData.job.success_count}, Failed: ${pollData.job.failed_count}`, 'success');
+                fetchStudents();
               } else {
                 toast('Bulk upload job failed.', 'error');
               }
@@ -447,6 +478,86 @@ function BatchStudentsTab({ batchId, token, toast }) {
           </div>
         )}
       </Modal>
+
+      {/* Duplicate Conflict Resolution Modal */}
+      <Modal open={showDuplicateModal} onClose={() => { setShowDuplicateModal(false); setDuplicateRecords([]); setPendingBulkUsers([]); }} title="Duplicate Conflict Detection" size="lg">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ background: '#fffbeb', border: '1px solid #fef3c7', padding: 16, borderRadius: 12, display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+            <AlertCircle size={20} style={{ color: '#d97706', marginTop: 2, flexShrink: 0 }} />
+            <div>
+              <h4 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#b45309' }}>Duplicate Records Found</h4>
+              <p style={{ margin: '4px 0 0', fontSize: 13, color: '#b45309', lineHeight: 1.5 }}>
+                We detected <strong>{duplicateRecords.length}</strong> record(s) in your file whose email, student PRN, or faculty ID already exist in the database. Please select how you want to handle these conflicts:
+              </p>
+            </div>
+          </div>
+
+          <div style={{ maxHeight: 200, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 12 }}>
+            <table className="data-table data-table-compact" style={{ margin: 0 }}>
+              <thead>
+                <tr>
+                  <th>Conflict Details</th>
+                  <th>Existing Database User</th>
+                </tr>
+              </thead>
+              <tbody>
+                {duplicateRecords.map((dup, idx) => (
+                  <tr key={idx}>
+                    <td>
+                      <div style={{ fontWeight: 700, fontSize: 12.5 }}>{dup.uploadRecord.name}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-4)' }}>
+                        {dup.uploadRecord.email && <span>{dup.uploadRecord.email}</span>}
+                        {dup.uploadRecord.prn && <span> · PRN: {dup.uploadRecord.prn}</span>}
+                        {dup.uploadRecord.faculty_id && <span> · ID: {dup.uploadRecord.faculty_id}</span>}
+                      </div>
+                    </td>
+                    <td>
+                      <div style={{ fontWeight: 700, fontSize: 12.5, color: 'var(--text-2)' }}>{dup.existingRecord.name}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-4)' }}>
+                        {dup.existingRecord.email && <span>{dup.existingRecord.email}</span>}
+                        {dup.existingRecord.prn && <span> · PRN: {dup.existingRecord.prn}</span>}
+                        {dup.existingRecord.faculty_id && <span> · ID: {dup.existingRecord.faculty_id}</span>}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="modal-footer" style={{ paddingLeft: 0, paddingRight: 0, paddingBottom: 0, marginTop: 12, display: 'flex', gap: 10, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+            <button
+              className="btn btn-outline"
+              onClick={() => {
+                setShowDuplicateModal(false);
+                setDuplicateRecords([]);
+                setPendingBulkUsers([]);
+              }}
+            >
+              Cancel Upload
+            </button>
+            <button
+              className="btn btn-outline"
+              style={{ color: '#2563eb', borderColor: '#2563eb' }}
+              onClick={() => {
+                setShowDuplicateModal(false);
+                executeBatchIngestion(pendingBulkUsers, 'skip');
+              }}
+            >
+              Skip Duplicates
+            </button>
+            <button
+              className="btn btn-primary"
+              onClick={() => {
+                setShowDuplicateModal(false);
+                executeBatchIngestion(pendingBulkUsers, 'replace');
+              }}
+            >
+              Replace & Overwrite
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }
@@ -540,7 +651,7 @@ function BatchFacultyTab({ batchId, token, toast }) {
       <Modal open={showAddModal} onClose={() => setShowAddModal(false)} title="Assign Faculty to Batch" size="lg">
         <div className="search-wrapper" style={{ maxWidth: '100%' }}>
           <Search className="search-icon" size={16} />
-          <input className="input-field" placeholder="Search master faculty…" value={addSearch} onChange={e => setAddSearch(e.target.value)} style={{ marginBottom: 0 }} />
+          <input className="input-field" placeholder="Search faculty…" value={addSearch} onChange={e => setAddSearch(e.target.value)} style={{ marginBottom: 0 }} />
         </div>
         <div className="table-wrapper" style={{ marginTop: 16 }}>
           <table className="data-table data-table-compact">
@@ -818,7 +929,7 @@ function BatchDetail({ batch, token, toast, onBack, onRefresh }) {
 }
 
 // ─── Main BatchManagement Component ──────────────────────────────────────────
-export default function BatchManagementModule({ token }) {
+export default function BatchManagementModule({ token, onBatchesChange }) {
   const [batches, setBatches] = useState([])
   const [loading, setLoading] = useState(false)
   const [selectedBatch, setSelectedBatch] = useState(null)
@@ -847,7 +958,11 @@ export default function BatchManagementModule({ token }) {
     })
     const data = await res.json()
     toast(data.message, res.ok ? 'success' : 'error')
-    if (res.ok) { setShowCreate(false); fetchBatches() }
+    if (res.ok) {
+      setShowCreate(false)
+      fetchBatches()
+      if (onBatchesChange) onBatchesChange()
+    }
   }
 
   const handleEdit = async (form) => {
@@ -858,7 +973,11 @@ export default function BatchManagementModule({ token }) {
     })
     const data = await res.json()
     toast(data.message, res.ok ? 'success' : 'error')
-    if (res.ok) { setEditBatch(null); fetchBatches() }
+    if (res.ok) {
+      setEditBatch(null)
+      fetchBatches()
+      if (onBatchesChange) onBatchesChange()
+    }
   }
 
   const handleDelete = async (batch) => {
@@ -866,7 +985,10 @@ export default function BatchManagementModule({ token }) {
     const res = await fetch(`${API}/api/admin/batches/${batch.id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } })
     const data = await res.json()
     toast(data.message, res.ok ? 'success' : 'error')
-    if (res.ok) fetchBatches()
+    if (res.ok) {
+      fetchBatches()
+      if (onBatchesChange) onBatchesChange()
+    }
   }
 
   const filtered = useMemo(() => batches.filter(b => {
@@ -892,8 +1014,15 @@ export default function BatchManagementModule({ token }) {
           batch={selectedBatch}
           token={token}
           toast={toast}
-          onBack={() => { setSelectedBatch(null); fetchBatches() }}
-          onRefresh={fetchBatches}
+          onBack={() => {
+            setSelectedBatch(null)
+            fetchBatches()
+            if (onBatchesChange) onBatchesChange()
+          }}
+          onRefresh={() => {
+            fetchBatches()
+            if (onBatchesChange) onBatchesChange()
+          }}
         />
         <ToastContainer toasts={toasts} />
       </>
@@ -907,7 +1036,11 @@ export default function BatchManagementModule({ token }) {
           <h2 className="page-title">Batch Management</h2>
           <p className="page-subtitle">Create and manage LTC batches, assign students and faculty, allocate squads</p>
         </div>
-        <div className="page-header-right">
+        <div className="page-header-right" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <button className="btn btn-outline btn-sm" style={{ padding: '8px', position: 'relative' }} title="Notifications">
+            <Bell size={14} />
+            <span style={{ position: 'absolute', top: '2px', right: '2px', width: '5px', height: '5px', background: '#ef4444', borderRadius: '50%' }} />
+          </button>
           <button className="btn btn-outline btn-sm" onClick={fetchBatches}><RefreshCw size={14} /></button>
           <button className="btn" onClick={() => setShowCreate(true)}><Plus size={16} /> New Batch</button>
         </div>
@@ -915,15 +1048,21 @@ export default function BatchManagementModule({ token }) {
 
       <div className="stats-grid" style={{ marginBottom: 24 }}>
         {[
-          { label: 'Total Batches', value: batches.length, color: 'var(--primary)' },
-          { label: 'Active', value: batches.filter(b => b.status === 'active').length, color: 'var(--success)' },
-          { label: 'Upcoming', value: batches.filter(b => b.status === 'upcoming').length, color: 'var(--warning)' },
-          { label: 'Total Students Enrolled', value: batches.reduce((a, b) => a + parseInt(b.student_count || 0), 0), color: 'var(--primary)' },
+          { label: 'Total Batches', value: batches.length, color: '#ffffff', icon: <Layers size={20} />, bg: "linear-gradient(135deg, rgba(37, 99, 235, 0.88) 0%, rgba(29, 78, 216, 0.92) 100%), url('/c.png') no-repeat center/cover", borderColor: 'transparent' },
+          { label: 'Active', value: batches.filter(b => b.status === 'active').length, color: '#ffffff', icon: <CheckCircle size={20} />, bg: "linear-gradient(135deg, rgba(16, 185, 129, 0.88) 0%, rgba(5, 150, 105, 0.92) 100%), url('/c1.png') no-repeat center/cover", borderColor: 'transparent' },
+          { label: 'Upcoming', value: batches.filter(b => b.status === 'upcoming').length, color: '#ffffff', icon: <Calendar size={20} />, bg: "linear-gradient(135deg, rgba(245, 158, 11, 0.88) 0%, rgba(217, 119, 6, 0.92) 100%), url('/c2.png') no-repeat center/cover", borderColor: 'transparent' },
+          { label: 'Total Students Enrolled', value: batches.reduce((a, b) => a + parseInt(b.student_count || 0), 0), color: '#ffffff', icon: <GraduationCap size={20} />, bg: "linear-gradient(135deg, rgba(99, 102, 241, 0.88) 0%, rgba(79, 70, 229, 0.92) 100%), url('/c3.png') no-repeat center/cover", borderColor: 'transparent' },
         ].map(s => (
-          <div key={s.label} className="stat-card">
-            <div className="stat-card-accent" style={{ background: s.color }} />
-            <div className="stat-card-value" style={{ color: s.color, fontSize: 24 }}>{s.value}</div>
-            <div className="stat-card-label">{s.label}</div>
+          <div key={s.label} className="stat-card" style={{ background: s.bg, borderColor: s.borderColor }}>
+            <div className="stat-card-body-wrapper">
+              <div className="stat-card-info">
+                <div className="stat-card-value" style={{ color: s.color }}>{s.value}</div>
+                <div className="stat-card-label" style={{ color: 'rgba(255, 255, 255, 0.85)' }}>{s.label}</div>
+              </div>
+              <div className="stat-card-icon-container" style={{ background: `rgba(255, 255, 255, 0.22)`, color: s.color }}>
+                {s.icon}
+              </div>
+            </div>
           </div>
         ))}
       </div>
@@ -966,23 +1105,23 @@ export default function BatchManagementModule({ token }) {
                 </div>
               </div>
 
-              <div className="batch-card-body">
+              <div className="batch-card-body" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {b.location && (
-                  <div className="batch-info-line">
-                    <MapPin size={13} className="info-icon" />
-                    <span>{b.location}</span>
+                  <div className="batch-info-capsule">
+                    <MapPin size={13} className="info-icon" style={{ color: 'var(--primary)' }} />
+                    <span style={{ fontSize: '13px', fontWeight: '500' }}>{b.location}</span>
                   </div>
                 )}
                 {b.start_date && (
-                  <div className="batch-info-line">
-                    <Calendar size={13} className="info-icon" />
-                    <span>{formatDate(b.start_date)} &rarr; {formatDate(b.end_date)}</span>
+                  <div className="batch-info-capsule">
+                    <Calendar size={13} className="info-icon" style={{ color: 'var(--success)' }} />
+                    <span style={{ fontSize: '13px', fontWeight: '500' }}>{formatDate(b.start_date)} &rarr; {formatDate(b.end_date)}</span>
                   </div>
                 )}
                 {b.year && (
-                  <div className="batch-info-line">
-                    <span className="info-label">Year:</span>
-                    <span className="info-value">{b.year}</span>
+                  <div className="batch-info-capsule" style={{ justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Year</span>
+                    <span style={{ background: 'var(--border)', padding: '2px 8px', borderRadius: '6px', fontSize: '12px', fontWeight: '700', color: 'var(--text)' }}>{b.year}</span>
                   </div>
                 )}
               </div>
@@ -990,11 +1129,17 @@ export default function BatchManagementModule({ token }) {
               <div className="batch-card-footer">
                 <div className="batch-card-metrics">
                   <div className="metric-pill students-pill">
-                    <span className="metric-val">{b.student_count}{b.capacity ? ` / ${b.capacity}` : ''}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <GraduationCap size={13} style={{ color: 'var(--primary)' }} />
+                      <span className="metric-val">{b.student_count}{b.capacity ? ` / ${b.capacity}` : ''}</span>
+                    </div>
                     <span className="metric-lbl">Students</span>
                   </div>
                   <div className="metric-pill faculty-pill">
-                    <span className="metric-val">{b.faculty_count}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <Users size={13} style={{ color: 'var(--success)' }} />
+                      <span className="metric-val">{b.faculty_count}</span>
+                    </div>
                     <span className="metric-lbl">Faculty</span>
                   </div>
                 </div>

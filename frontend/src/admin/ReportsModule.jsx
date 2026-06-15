@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { BarChart2, Shield, ClipboardList, CheckCircle, RefreshCw, Search, Award } from 'lucide-react'
+import { BarChart2, Shield, ClipboardList, CheckCircle, RefreshCw, Search, Award, Bell } from 'lucide-react'
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:5001'
 
@@ -148,9 +148,15 @@ export default function ReportsModule({ token, toast }) {
               <option value="SQUAD_LEADER_UPDATED">Squad Leader Update</option>
               <option value="BULK_UPLOAD_COMPLETED">Bulk Ingestion Completed</option>
             </select>
-            <button className="btn btn-outline" style={{ height: 42, padding: '0 14px', borderRadius: 50 }} onClick={() => fetchLogs(page)} title="Refresh Logs">
-              <RefreshCw size={14} />
-            </button>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <button className="btn btn-outline" style={{ height: 42, padding: '0 12px', borderRadius: 50, position: 'relative' }} title="Notifications">
+                <Bell size={14} />
+                <span style={{ position: 'absolute', top: '5px', right: '5px', width: '5px', height: '5px', background: '#ef4444', borderRadius: '50%' }} />
+              </button>
+              <button className="btn btn-outline" style={{ height: 42, padding: '0 14px', borderRadius: 50 }} onClick={() => fetchLogs(page)} title="Refresh Logs">
+                <RefreshCw size={14} />
+              </button>
+            </div>
           </div>
 
           <div className="table-wrapper">

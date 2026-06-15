@@ -4,6 +4,7 @@ import { ArrowUp } from 'lucide-react'
 export default function ScrollToTop() {
   const [visible, setVisible] = useState(false)
   const [isHovered, setIsHovered] = useState(false)
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768)
 
   useEffect(() => {
     const toggleVisible = () => {
@@ -16,8 +17,16 @@ export default function ScrollToTop() {
       }
     };
 
+    const handleResize = () => {
+      setIsMobile(window.innerWidth <= 768)
+    }
+
     window.addEventListener('scroll', toggleVisible);
-    return () => window.removeEventListener('scroll', toggleVisible);
+    window.addEventListener('resize', handleResize);
+    return () => {
+      window.removeEventListener('scroll', toggleVisible);
+      window.removeEventListener('resize', handleResize);
+    };
   }, []);
 
   const scrollToTop = () =>{
@@ -27,6 +36,8 @@ export default function ScrollToTop() {
     });
   };
 
+  if (!visible) return null
+
   return (
     <button 
       onClick={scrollToTop}
@@ -35,10 +46,10 @@ export default function ScrollToTop() {
       style={{
         display: 'flex',
         position: 'fixed',
-        bottom: '40px',
-        right: '40px',
-        width: '50px',
-        height: '50px',
+        bottom: isMobile ? '80px' : '40px',
+        right: isMobile ? '20px' : '40px',
+        width: isMobile ? '44px' : '50px',
+        height: isMobile ? '44px' : '50px',
         borderRadius: '50%',
         background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
         color: 'white',
@@ -53,7 +64,7 @@ export default function ScrollToTop() {
       }}
       title="Scroll to Top"
     >
-      <ArrowUp size={24} />
+      <ArrowUp size={isMobile ? 20 : 24} />
     </button>
   )
 }

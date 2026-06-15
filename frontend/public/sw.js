@@ -5,6 +5,8 @@ const ASSETS_TO_CACHE = [
   '/favicon.svg',
   '/manifest.json',
   '/logoo.png',
+  '/icon-192.png',
+  '/icon-512.png',
   '/spla.png',
   '/ltc.png',
   '/pattern2.png'

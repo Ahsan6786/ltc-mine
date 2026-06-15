@@ -998,7 +998,7 @@ app.delete('/api/admin/batches/:id/faculty/:facultyId', authMiddleware(['admin']
 });
 
 // ── Background Bulk Ingestion Worker ──────────────────────────────────────────
-const processUploadJobInBackground = async (jobId, records, batchId = null, isBatchSpecific = false, adminUserId = null, adminUserName = 'Admin') => {
+const processUploadJobInBackground = async (jobId, records, batchId = null, isBatchSpecific = false, adminUserId = null, adminUserName = 'Admin', duplicateAction = 'replace') => {
   let processed = 0;
   let success = 0;
   let failed = 0;
@@ -1102,6 +1102,7 @@ const processUploadJobInBackground = async (jobId, records, batchId = null, isBa
 
         const toInsert = [];
         const toUpdate = [];
+        const skippedDuplicates = [];
 
         for (const r of chunk) {
           let matchedUser = null;
@@ -1117,7 +1118,16 @@ const processUploadJobInBackground = async (jobId, records, batchId = null, isBa
           }
 
           if (matchedUser) {
-            toUpdate.push({ id: matchedUser.id, record: r });
+            if (duplicateAction === 'skip') {
+              failed++;
+              errorsList.push({ 
+                row: r._email || r._prn || r._facultyId || name || 'Row', 
+                error: `Skipped duplicate profile: ${name} (PRN: ${r._prn || 'N/A'}, Email: ${r._email || 'N/A'})` 
+              });
+              skippedDuplicates.push({ id: matchedUser.id, record: r });
+            } else {
+              toUpdate.push({ id: matchedUser.id, record: r });
+            }
           } else {
             toInsert.push(r);
           }
@@ -1253,6 +1263,10 @@ const processUploadJobInBackground = async (jobId, records, batchId = null, isBa
             ...toUpdate.map(item => {
               const r = item.record;
               return { id: item.id, role: r._role, email: r._email, prn: r._prn, faculty_id: r._facultyId, name: r.name || r.full_name || r.student_name };
+            }),
+            ...skippedDuplicates.map(item => {
+              const r = item.record;
+              return { id: item.id, role: r._role, email: r._email, prn: r._prn, faculty_id: r._facultyId, name: r.name || r.full_name || r.student_name };
             })
           ];
 
@@ -1378,7 +1392,7 @@ const processUploadJobInBackground = async (jobId, records, batchId = null, isBa
 // Batch Bulk Upload (auto-detect students/faculty) - BACKGROUND PROCESSOR
 app.post('/api/admin/batches/:id/bulk-upload', authMiddleware(['admin']), async (req, res) => {
   const { id } = req.params;
-  const { records } = req.body;
+  const { records, duplicateAction } = req.body;
 
   if (!Array.isArray(records) || records.length === 0) {
     return res.status(400).json({ message: 'records must be a non-empty array' });
@@ -1399,7 +1413,7 @@ app.post('/api/admin/batches/:id/bulk-upload', authMiddleware(['admin']), async 
 
     // Start background processing async
     setImmediate(() => {
-      processUploadJobInBackground(jobId, records, parseInt(id), true, req.user.id, req.user.name || 'Admin');
+      processUploadJobInBackground(jobId, records, parseInt(id), true, req.user.id, req.user.name || 'Admin', duplicateAction || 'replace');
     });
 
     res.json({ jobId, message: 'Bulk upload started in the background.' });
@@ -1785,9 +1799,98 @@ app.put('/api/admin/insurance', authMiddleware(['admin']), async (req, res) => {
   }
 });
 
+// Pre-flight validation endpoint to detect duplicates
+app.post('/api/admin/bulk-upload/validate', authMiddleware(['admin']), async (req, res) => {
+  const { users } = req.body;
+  if (!Array.isArray(users)) {
+    return res.status(400).json({ message: 'users must be an array' });
+  }
+
+  try {
+    const emails = [];
+    const prns = [];
+    const facultyIds = [];
+
+    // Extract unique identifier arrays
+    for (const r of users) {
+      if (!r || typeof r !== 'object') continue;
+
+      const normalized = {};
+      for (const key in r) {
+        const cleanKey = key.replace(/^\uFEFF/, '').toLowerCase().trim();
+        normalized[cleanKey] = r[key];
+      }
+
+      const prn = String(normalized.prn || normalized['student id'] || normalized.student_id || '').trim();
+      const email = String(normalized.email || '').trim().toLowerCase();
+      const facultyId = String(normalized.faculty_id || normalized['faculty id'] || '').trim();
+
+      if (email) emails.push(email);
+      if (prn) prns.push(prn);
+      if (facultyId) facultyIds.push(facultyId);
+    }
+
+    let existingUsers = [];
+    if (emails.length > 0 || prns.length > 0 || facultyIds.length > 0) {
+      const dbRes = await pool.query(
+        `SELECT id, email, prn, faculty_id, role, name FROM users
+         WHERE (email IS NOT NULL AND email = ANY($1)) 
+            OR (prn IS NOT NULL AND prn = ANY($2)) 
+            OR (faculty_id IS NOT NULL AND faculty_id = ANY($3))`,
+        [emails, prns, facultyIds]
+      );
+      existingUsers = dbRes.rows;
+    }
+
+    const duplicates = [];
+    for (const r of users) {
+      if (!r || typeof r !== 'object') continue;
+
+      const normalized = {};
+      for (const key in r) {
+        const cleanKey = key.replace(/^\uFEFF/, '').toLowerCase().trim();
+        normalized[cleanKey] = r[key];
+      }
+
+      const prn = String(normalized.prn || normalized['student id'] || normalized.student_id || '').trim();
+      const email = String(normalized.email || '').trim().toLowerCase();
+      const facultyId = String(normalized.faculty_id || normalized['faculty id'] || '').trim();
+
+      let matched = existingUsers.find(u => 
+        (email && u.email && u.email.toLowerCase() === email) ||
+        (prn && u.prn && u.prn === prn) ||
+        (facultyId && u.faculty_id && u.faculty_id === facultyId)
+      );
+
+      if (matched) {
+        duplicates.push({
+          uploadRecord: {
+            name: normalized.name || normalized.full_name || normalized.student_name || 'Unknown',
+            email: email || null,
+            prn: prn || null,
+            faculty_id: facultyId || null,
+            role: normalized.role || 'student'
+          },
+          existingRecord: {
+            name: matched.name,
+            email: matched.email,
+            prn: matched.prn,
+            faculty_id: matched.faculty_id,
+            role: matched.role
+          }
+        });
+      }
+    }
+
+    res.json({ duplicates });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error during validation', error: err.message });
+  }
+});
+
 // Bulk Upload (global, not batch-specific)
 app.post('/api/admin/bulk-upload', authMiddleware(['admin']), async (req, res) => {
-  const { users } = req.body;
+  const { users, duplicateAction } = req.body;
   if (!Array.isArray(users) || users.length === 0) {
     return res.status(400).json({ message: 'users must be a non-empty array' });
   }
@@ -1801,7 +1904,7 @@ app.post('/api/admin/bulk-upload', authMiddleware(['admin']), async (req, res) =
 
     // Start background processing
     setImmediate(() => {
-      processUploadJobInBackground(jobId, users, null, false, req.user.id, req.user.name || 'Admin');
+      processUploadJobInBackground(jobId, users, null, false, req.user.id, req.user.name || 'Admin', duplicateAction || 'replace');
     });
 
     res.json({ jobId, message: 'Bulk upload started in the background.' });

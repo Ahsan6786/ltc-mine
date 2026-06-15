@@ -11,11 +11,17 @@ createRoot(document.getElementById('root')).render(
 
 // Register Service Worker for PWA support in production only
 if (import.meta.env.PROD && 'serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
+  const registerSW = () => {
     navigator.serviceWorker.register('/sw.js')
       .then((reg) => console.log('Service Worker registered successfully:', reg.scope))
       .catch((err) => console.error('Service Worker registration failed:', err));
-  });
+  };
+
+  if (document.readyState === 'complete') {
+    registerSW();
+  } else {
+    window.addEventListener('load', registerSW);
+  }
 }
 
 // Unregister Service Workers in development to prevent caching issues with Vite

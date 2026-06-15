@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react'
-import { Plus, Search, Trash2, RefreshCw, GraduationCap } from 'lucide-react'
+import { Plus, Search, Trash2, RefreshCw, GraduationCap, Bell } from 'lucide-react'
 
 export default function StudentsModule({
   users,
@@ -26,16 +26,23 @@ export default function StudentsModule({
   handleViewFeedback,
   handleDeleteUser,
   fetchUsers,
-  PaginationBar
+  PaginationBar,
+  hideTitle = false
 }) {
   return (
     <div className="animate-fade-in">
       <div className="page-header">
-        <div className="page-header-left">
-          <h2 className="page-title">Master Student Database</h2>
-          <p className="page-subtitle">{students.length} students found · Master Directory</p>
-        </div>
-        <div className="page-header-right">
+        {!hideTitle && (
+          <div className="page-header-left">
+            <h2 className="page-title">Student Database</h2>
+            <p className="page-subtitle">{students.length} students found · Directory</p>
+          </div>
+        )}
+        <div className="page-header-right" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <button className="btn btn-outline btn-sm" style={{ padding: '8px', position: 'relative' }} title="Notifications">
+            <Bell size={14} />
+            <span style={{ position: 'absolute', top: '2px', right: '2px', width: '5px', height: '5px', background: '#ef4444', borderRadius: '50%' }} />
+          </button>
           <button className="btn btn-outline btn-sm" onClick={fetchUsers}>
             <RefreshCw size={14} />
           </button>

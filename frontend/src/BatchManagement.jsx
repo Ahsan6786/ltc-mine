@@ -364,7 +364,7 @@ function BatchFacultyTab({ batchId, token, toast }) {
       <Modal open={showAddModal} onClose={() => setShowAddModal(false)} title="Assign Faculty to Batch" size="lg">
         <div className="search-wrapper" style={{ maxWidth: '100%' }}>
           <Search className="search-icon" size={16} />
-          <input className="input-field" placeholder="Search master faculty…" value={addSearch} onChange={e => setAddSearch(e.target.value)} style={{ marginBottom: 0 }} />
+          <input className="input-field" placeholder="Search faculty…" value={addSearch} onChange={e => setAddSearch(e.target.value)} style={{ marginBottom: 0 }} />
         </div>
         <div className="table-wrapper" style={{ marginTop: 16 }}>
           <table className="data-table data-table-compact">

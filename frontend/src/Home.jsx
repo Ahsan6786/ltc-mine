@@ -516,7 +516,7 @@ export default function Home() {
           }}>
             <div style={{ position: 'relative', paddingBottom: '56.25%', height: 0 }}>
               <iframe 
-                src="https://www.youtube.com/embed/mK1Oa4dsf8c?start=5" 
+                src="https://www.youtube-nocookie.com/embed/mK1Oa4dsf8c?start=5" 
                 title="YouTube video player" 
                 frameBorder="0" 
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
