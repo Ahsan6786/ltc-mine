@@ -103,33 +103,29 @@ export default function StudentsModule({
           </select>
         </div>
 
-        <div className="table-wrapper">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>PRN / LTC ID</th>
-                <th>Email</th>
-                <th>School / Dept</th>
-                <th>Panel</th>
-                <th>NRI</th>
-                <th>Insured</th>
-                <th>Legacy Batch</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {studentPg.paginated.length === 0 ? (
+        {studentPg.paginated.length === 0 ? (
+          <div className="empty-state" style={{ padding: '60px 20px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+            <GraduationCap size={36} style={{ color: 'var(--text-4)', marginBottom: '12px' }} />
+            <p style={{ color: 'var(--text-3)', fontSize: '14.5px', fontWeight: '600', margin: 0 }}>No students found.</p>
+          </div>
+        ) : (
+          <div className="table-wrapper">
+            <table className="data-table">
+              <thead>
                 <tr>
-                  <td colSpan={9}>
-                    <div className="empty-state" style={{ padding: '40px 0' }}>
-                      <GraduationCap size={36} />
-                      <p>No students found.</p>
-                    </div>
-                  </td>
+                  <th>Name</th>
+                  <th>PRN / LTC ID</th>
+                  <th>Email</th>
+                  <th>School / Dept</th>
+                  <th>Panel</th>
+                  <th>NRI</th>
+                  <th>Insured</th>
+                  <th>Legacy Batch</th>
+                  <th>Actions</th>
                 </tr>
-              ) : (
-                studentPg.paginated.map(u => (
+              </thead>
+              <tbody>
+                {studentPg.paginated.map(u => (
                   <tr key={u.id}>
                     <td>
                       <div style={{ fontWeight: 700, fontSize: 13.5 }}>{u.name}</div>
@@ -229,11 +225,11 @@ export default function StudentsModule({
                       </div>
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
         <PaginationBar
           page={studentPg.page}
           totalPages={studentPg.totalPages}

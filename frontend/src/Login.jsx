@@ -1,10 +1,11 @@
 import React, { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { LogIn, ArrowLeft, Mail, Lock, ChevronRight } from 'lucide-react'
+import { LogIn, ArrowLeft, Mail, Lock, ChevronRight, User, Eye, EyeOff } from 'lucide-react'
 
 export default function Login() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('123')
+  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
@@ -39,82 +40,437 @@ export default function Login() {
     }
   }
 
+  const handleReset = () => {
+    setEmail('')
+    setPassword('')
+    setError('')
+  }
+
   return (
-    <div className="login-minimal-container" style={{ overflow: 'hidden' }}>
-      {/* Background Watermarks */}
-      <img src="/pattern2.png" alt="" style={{ position: 'absolute', top: '-50px', right: '-50px', width: '250px', opacity: 0.05, pointerEvents: 'none' }} />
-      <img src="/pattern2.png" alt="" style={{ position: 'absolute', bottom: '-50px', left: '-50px', width: '250px', opacity: 0.05, pointerEvents: 'none', transform: 'rotate(180deg)' }} />
+    <div className="login-page-container">
+      <style>{`
+        .login-page-container {
+          min-height: 100vh;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: linear-gradient(135deg, #f8fafc 0%, #cbd5e1 100%);
+          padding: 40px 20px;
+          font-family: 'Inter', system-ui, -apple-system, sans-serif;
+          box-sizing: border-box;
+          position: relative;
+        }
+        
+        .login-back-btn {
+          position: absolute;
+          top: 24px;
+          left: 24px;
+          text-decoration: none;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          color: #1e293b;
+          font-weight: 700;
+          font-size: 13px;
+          background: #ffffff;
+          padding: 8px 16px;
+          border-radius: 50px;
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+          transition: all 0.2s ease;
+          z-index: 10;
+        }
 
-      <Link to="/" style={{ position: 'fixed', top: '40px', left: '40px', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '8px', color: '#0f172a', fontWeight: '700', fontSize: '14px' }}>
-        <ArrowLeft size={18} /> Back to Site
+        .login-back-btn:hover {
+          transform: translateY(-1px);
+          box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
+          color: #003DA5;
+        }
+        
+        .login-card {
+          display: flex;
+          width: 100%;
+          max-width: 1120px;
+          min-height: 560px;
+          background: #ffffff;
+          border-radius: 36px;
+          box-shadow: 0 20px 50px rgba(0, 5, 20, 0.08);
+          overflow: hidden;
+          box-sizing: border-box;
+        }
+        
+        .login-left {
+          width: 52%;
+          background: url('/blue.png') right center / cover no-repeat;
+          padding: 48px;
+          display: flex;
+          flex-direction: column;
+          position: relative;
+          box-sizing: border-box;
+        }
+        
+        .login-right {
+          width: 48%;
+          background: #ffffff;
+          padding: 48px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          box-sizing: border-box;
+        }
+        
+        .login-form-wrapper {
+          width: 100%;
+          max-width: 350px;
+        }
+        
+        .solid-logo-card {
+          background: #ffffff;
+          border-radius: 20px;
+          padding: 20px 28px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          align-self: flex-start;
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+        }
+
+        .login-logo-img {
+          height: 56px;
+          width: auto;
+        }
+        
+        .branding-text-container {
+          margin: auto 0;
+        }
+
+        .login-brand-title {
+          font-size: 48px;
+          font-weight: 800;
+          line-height: 1.15;
+          color: #ffffff;
+          letter-spacing: -1.5px;
+          margin: 0 0 10px 0;
+        }
+
+        .login-brand-subtitle {
+          font-size: 20px;
+          color: rgba(255, 255, 255, 0.9);
+          font-weight: 500;
+          margin: 0;
+        }
+        
+        .login-pill-input-group {
+          margin-bottom: 16px;
+        }
+        
+        .login-field-label {
+          display: block;
+          margin-bottom: 6px;
+          font-size: 11px;
+          font-weight: 750;
+          color: #64748b;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+        }
+        
+        .login-pill-input-container {
+          display: flex;
+          align-items: center;
+          background: #f8fafc;
+          border: 1.5px solid #e2e8f0;
+          border-radius: 50px;
+          padding: 0 16px;
+          height: 46px;
+          transition: all 0.2s ease;
+        }
+        
+        .login-pill-input-container:focus-within {
+          border-color: #003DA5;
+          box-shadow: 0 0 0 3px rgba(0, 61, 165, 0.12);
+          background: #ffffff;
+        }
+        
+        .login-pill-icon {
+          color: #94a3b8;
+          margin-right: 10px;
+          flex-shrink: 0;
+          transition: color 0.2s ease;
+        }
+        
+        .login-pill-input-container:focus-within .login-pill-icon {
+          color: #003DA5;
+        }
+        
+        .login-pill-input {
+          flex: 1;
+          background: none;
+          border: none;
+          outline: none;
+          height: 100%;
+          font-size: 14px;
+          color: #0f172a;
+          font-weight: 550;
+        }
+        
+        .login-pill-input::placeholder {
+          color: #94a3b8;
+          font-weight: 400;
+        }
+        
+        .login-btn-primary {
+          background: linear-gradient(135deg, #003DA5 0%, #002B73 100%);
+          color: #ffffff;
+          border: none;
+          border-radius: 50px;
+          height: 46px;
+          font-size: 14.5px;
+          font-weight: 750;
+          cursor: pointer;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 6px;
+          transition: all 0.2s ease;
+          box-shadow: 0 4px 10px rgba(0, 61, 165, 0.2);
+        }
+        
+        .login-btn-primary:hover {
+          transform: translateY(-1px);
+          box-shadow: 0 6px 16px rgba(0, 61, 165, 0.3);
+          opacity: 0.95;
+        }
+        
+        .login-btn-primary:active {
+          transform: translateY(0);
+        }
+        
+        .login-btn-secondary {
+          background: #ffffff;
+          color: #003DA5;
+          border: 1.5px solid #003DA5;
+          border-radius: 50px;
+          height: 46px;
+          font-size: 14.5px;
+          font-weight: 750;
+          cursor: pointer;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          transition: all 0.2s ease;
+          box-sizing: border-box;
+        }
+        
+        .login-btn-secondary:hover {
+          background: rgba(0, 61, 165, 0.04);
+        }
+        
+        .login-btn-secondary:active {
+          background: rgba(0, 61, 165, 0.08);
+        }
+
+        .login-btn-row {
+          display: flex;
+          gap: 12px;
+        }
+        
+        .login-forgot-link {
+          color: #003DA5;
+          font-size: 12.5px;
+          font-weight: 600;
+          text-decoration: none;
+          display: inline-block;
+          margin-top: 12px;
+          transition: color 0.2s ease;
+        }
+        
+        .login-forgot-link:hover {
+          color: #002B73;
+          text-decoration: underline;
+        }
+        
+        @media (max-width: 1024px) {
+          .login-card {
+            max-width: 900px;
+          }
+          .login-left {
+            padding: 36px;
+          }
+          .login-right {
+            padding: 36px;
+          }
+          .login-brand-title {
+            font-size: 38px;
+          }
+        }
+        
+        @media (max-width: 768px) {
+          .login-back-btn {
+            position: absolute;
+            top: 12px;
+            left: 12px;
+            padding: 6px 12px;
+            font-size: 11.5px;
+          }
+          .login-page-container {
+            padding: 10px;
+          }
+          .login-card {
+            flex-direction: column;
+            border-radius: 32px;
+            min-height: auto;
+          }
+          .login-left {
+            width: 100%;
+            height: auto;
+            min-height: 200px;
+            padding: 32px 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            gap: 18px;
+            background-position: center center !important;
+          }
+          .login-right {
+            width: 100%;
+            padding: 32px 20px;
+          }
+          .login-brand-title {
+            font-size: 26px !important;
+            text-align: center !important;
+            letter-spacing: -0.5px !important;
+            line-height: 1.2 !important;
+          }
+          .login-brand-subtitle {
+            font-size: 15px !important;
+            text-align: center !important;
+          }
+          .solid-logo-card {
+            padding: 12px 20px;
+            align-self: center !important;
+            display: flex !important;
+            justify-content: center !important;
+          }
+          .login-logo-img {
+            height: 42px !important;
+          }
+          .branding-text-container {
+            margin: 0;
+            text-align: center;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+          }
+        }
+
+        @media (max-width: 480px) {
+          .login-btn-row {
+            flex-direction: column;
+            gap: 10px;
+          }
+          .login-btn-primary, .login-btn-secondary {
+            width: 100%;
+            flex: none !important;
+          }
+        }
+      `}</style>
+
+      <Link to="/" className="login-back-btn">
+        <ArrowLeft size={14} /> Back to Site
       </Link>
-      
-      <div className="login-minimal-card animate-fade-in" style={{ boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.08)' }}>
-        <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-          <img src="/ltc.png" alt="LTC Logo" style={{ height: '60px', marginBottom: '16px' }} />
-          <h1 style={{ fontSize: '23px', fontWeight: '800', color: '#0f172a', marginBottom: '4px', letterSpacing: '-0.5px' }}>Life Realization Program</h1>
+
+      <div className="login-card">
+        {/* Left Side: Branding */}
+        <div className="login-left">
+          <div className="solid-logo-card">
+            <img src="/ltc.png" alt="LTC Logo" className="login-logo-img" />
+          </div>
+
+          <div className="branding-text-container">
+            <h1 className="login-brand-title">
+              Life Transformation Centre
+            </h1>
+            <p className="login-brand-subtitle">
+              Administration System
+            </p>
+          </div>
         </div>
 
-        {error && (
-          <div style={{ background: '#fef2f2', border: '1px solid #fee2e2', padding: '12px', borderRadius: '12px', color: '#b91c1c', marginBottom: '24px', fontSize: '14px', textAlign: 'center', fontWeight: '600' }}>
-            {error}
-          </div>
-        )}
+        {/* Right Side: Login Form */}
+        <div className="login-right">
+          <div className="login-form-wrapper">
+            <div style={{ marginBottom: '24px' }}>
+              <h2 style={{ fontSize: '28px', fontWeight: '800', color: '#002B73', margin: 0, letterSpacing: '-0.5px' }}>
+                Login
+              </h2>
+              <p style={{ fontSize: '14px', color: '#64748b', margin: '4px 0 0 0' }}>
+                Please login to your account
+              </p>
+            </div>
 
-        <form onSubmit={handleLogin}>
-          <div style={{ marginBottom: '24px' }}>
-            <label style={{ display: 'block', marginBottom: '10px', fontSize: '12px', fontWeight: '800', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Email Address</label>
-            <div className="pill-input-container">
-              <Mail className="pill-input-icon" size={20} />
-              <input 
-                type="email" 
-                className="pill-input" 
-                placeholder="admin@ltc.edu"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
-            </div>
-          </div>
-          
-          <div style={{ marginBottom: '40px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-              <label style={{ fontSize: '12px', fontWeight: '800', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Password</label>
-              <a href="#" style={{ fontSize: '11px', fontWeight: '800', color: '#2563eb', textDecoration: 'none', textTransform: 'uppercase' }}>Forgot?</a>
-            </div>
-            <div className="pill-input-container">
-              <Lock className="pill-input-icon" size={20} />
-              <input 
-                type="password" 
-                className="pill-input" 
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
-            </div>
-          </div>
-          
-          <button type="submit" className="btn-pill" disabled={loading}>
-            {loading ? 'Authenticating...' : (
-              <>
-                Sign In <ChevronRight size={20} />
-              </>
+            {error && (
+              <div style={{ background: '#fef2f2', border: '1px solid #fee2e2', padding: '10px', borderRadius: '12px', color: '#b91c1c', marginBottom: '20px', fontSize: '13.5px', textAlign: 'center', fontWeight: '600' }}>
+                {error}
+              </div>
             )}
-          </button>
-        </form>
 
-        <div style={{ marginTop: '40px', textAlign: 'center', borderTop: '1px solid #f1f5f9', paddingTop: '32px' }}>
-          <p style={{ fontSize: '12px', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase' }}>
-            Need Access? <a href="#" style={{ color: '#2563eb', textDecoration: 'none' }}>Contact System Admin</a>
-          </p>
+            <form onSubmit={handleLogin}>
+              <div className="login-pill-input-group">
+                <label className="login-field-label">Email Address</label>
+                <div className="login-pill-input-container">
+                  <User className="login-pill-icon" size={18} />
+                  <input 
+                    type="email" 
+                    className="login-pill-input" 
+                    placeholder="Enter email address"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="login-pill-input-group" style={{ marginBottom: '24px' }}>
+                <label className="login-field-label">Password</label>
+                <div className="login-pill-input-container">
+                  <Lock className="login-pill-icon" size={18} />
+                  <input 
+                    type={showPassword ? "text" : "password"} 
+                    className="login-pill-input" 
+                    placeholder="Enter password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    style={{ background: 'none', border: 'none', padding: '0 4px', display: 'flex', alignItems: 'center', cursor: 'pointer', color: '#94a3b8' }}
+                  >
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="login-btn-row">
+                <button type="submit" className="login-btn-primary" style={{ flex: 2 }} disabled={loading}>
+                  {loading ? 'Signing In...' : 'Sign In'}
+                </button>
+                <button type="button" className="login-btn-secondary" style={{ flex: 1 }} onClick={handleReset}>
+                  Reset
+                </button>
+              </div>
+            </form>
+
+            <div style={{ marginTop: '16px', textAlign: 'center' }}>
+              <a href="#" className="login-forgot-link">
+                Forgot Password?
+              </a>
+            </div>
+          </div>
         </div>
-      </div>
-      
-      <div style={{ position: 'fixed', bottom: '40px', width: '100%', textAlign: 'center' }}>
-         <p style={{ fontSize: '11px', fontWeight: '700', color: '#cbd5e1', textTransform: 'uppercase', letterSpacing: '1.5px' }}>
-           © 2026 Life Transformation Centre
-         </p>
       </div>
     </div>
   )

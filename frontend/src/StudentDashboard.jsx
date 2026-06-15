@@ -537,7 +537,9 @@ export default function StudentDashboard() {
         top: 0, left: 0, bottom: 0, zIndex: 1000,
         transform: isMobile && !isSidebarOpen ? 'translateX(-100%)' : 'none',
         transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-        height: '100vh'
+        height: '100vh',
+        paddingTop: isMobile ? 'env(safe-area-inset-top)' : '0px',
+        boxSizing: 'border-box'
       }}>
         {/* Header */}
         <div className="sidebar-header">
@@ -630,7 +632,7 @@ export default function StudentDashboard() {
       </div>
 
       {/* Main Content */}
-      <div className="main-content" style={{ flex: 1, padding: isMobile ? '10px' : '30px' }}>
+      <div className="main-content" style={{ flex: 1, padding: isMobile ? 'calc(10px + env(safe-area-inset-top)) 10px calc(10px + env(safe-area-inset-bottom))' : '30px' }}>
         {isMobile && (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', background: 'white', padding: '10px', borderRadius: '8px', boxShadow: 'var(--shadow-sm)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>

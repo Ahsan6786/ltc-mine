@@ -862,6 +862,46 @@ export default function AdminDashboard() {
   }
 
   const renderMobilePeople = () => {
+    if (users.length === 0) {
+      return (
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minHeight: '60vh',
+          padding: '20px',
+          textAlign: 'center',
+          boxSizing: 'border-box'
+        }} className="animate-fade-in">
+          <div style={{
+            background: 'rgba(37, 99, 235, 0.05)',
+            borderRadius: '50%',
+            width: '80px',
+            height: '80px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            marginBottom: '20px',
+            color: '#2563eb'
+          }}>
+            <Users size={40} />
+          </div>
+          <h3 style={{ fontSize: '20px', fontWeight: '800', color: '#0f172a', marginBottom: '8px' }}>No Data Available</h3>
+          <p style={{ color: '#64748b', fontSize: '14px', maxWidth: '280px', margin: '0 auto 24px', lineHeight: '1.5' }}>
+            There is currently no people data registered in the portal.
+          </p>
+          <button 
+            className="btn btn-outline" 
+            onClick={fetchUsers}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+          >
+            <RefreshCw size={14} /> Refresh Data
+          </button>
+        </div>
+      )
+    }
+
     return (
       <div className="mobile-people-wrapper animate-fade-in" style={{ padding: '16px' }}>
         <div className="mobile-subtabs" style={{ display: 'flex', background: '#e2e8f0', padding: '6px', borderRadius: '16px', marginBottom: '20px' }}>
@@ -927,29 +967,34 @@ export default function AdminDashboard() {
                 </div>
               </div>
               <div className="glass-card" style={{ padding: 0 }}>
-                <div className="table-wrapper">
-                  <table className="data-table">
-                    <thead><tr><th>Name</th><th>Role</th><th>Actions</th></tr></thead>
-                    <tbody>
-                      {ltcMembers.length === 0 ? (
-                        <tr><td colSpan={3}><div className="empty-state" style={{ padding: '20px 0' }}><Users size={24} /><p>No members yet.</p></div></td></tr>
-                      ) : ltcMembers.map(u => (
-                        <tr key={u.id}>
-                          <td>
-                            <div style={{ fontWeight: 700, fontSize: '13px' }}>{u.name}</div>
-                            <div style={{ fontSize: 11, color: 'var(--text-3)' }}>{u.email}</div>
-                          </td>
-                          <td><span className="badge badge-blue" style={{ fontSize: 10 }}>{u.department || 'member'}</span></td>
-                          <td>
-                            <button className="btn btn-outline btn-sm" style={{ borderColor: 'var(--danger)', color: 'var(--danger)', padding: '2px 6px' }} onClick={() => handleDeleteUser(u.id, 'ltc_member')}>
-                              <Trash2 size={10} />
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                {ltcMembers.length === 0 ? (
+                  <div className="empty-state" style={{ padding: '40px 20px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                    <Users size={36} style={{ color: 'var(--text-4)', marginBottom: '12px' }} />
+                    <p style={{ color: 'var(--text-3)', fontSize: '14.5px', fontWeight: '600', margin: 0 }}>No members yet.</p>
+                  </div>
+                ) : (
+                  <div className="table-wrapper">
+                    <table className="data-table">
+                      <thead><tr><th>Name</th><th>Role</th><th>Actions</th></tr></thead>
+                      <tbody>
+                        {ltcMembers.map(u => (
+                          <tr key={u.id}>
+                            <td>
+                              <div style={{ fontWeight: 700, fontSize: '13px' }}>{u.name}</div>
+                              <div style={{ fontSize: 11, color: 'var(--text-3)' }}>{u.email}</div>
+                            </td>
+                            <td><span className="badge badge-blue" style={{ fontSize: 10 }}>{u.department || 'member'}</span></td>
+                            <td>
+                              <button className="btn btn-outline btn-sm" style={{ borderColor: 'var(--danger)', color: 'var(--danger)', padding: '2px 6px' }} onClick={() => handleDeleteUser(u.id, 'ltc_member')}>
+                                <Trash2 size={10} />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -1672,7 +1717,9 @@ export default function AdminDashboard() {
             position: 'fixed',
             top: 0, left: 0, bottom: 0, zIndex: 1000, height: '100vh',
             transform: !isSidebarOpen ? 'translateX(-100%)' : 'none',
-            transition: 'transform 0.3s cubic-bezier(0.4,0,0.2,1)'
+            transition: 'transform 0.3s cubic-bezier(0.4,0,0.2,1)',
+            paddingTop: 'env(safe-area-inset-top)',
+            boxSizing: 'border-box'
           }}>
             <div className="sidebar-header">
               <div className="sidebar-brand-container">
@@ -1698,7 +1745,7 @@ export default function AdminDashboard() {
               <NavItem tab="reports" icon={<BarChart2 size={16} />} label="Reports & Logs" />
             </nav>
 
-            <div className="sidebar-footer" style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '16px', borderTop: '1px solid rgba(255, 255, 255, 0.06)', background: 'transparent', width: '100%', boxSizing: 'border-box' }}>
+            <div className="sidebar-footer" style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '16px 16px calc(16px + env(safe-area-inset-bottom))', borderTop: '1px solid rgba(255, 255, 255, 0.06)', background: 'transparent', width: '100%', boxSizing: 'border-box' }}>
               <div className="sidebar-profile-card">
                 <div className="sidebar-profile-avatar">AD</div>
                 <div className="sidebar-profile-details">
@@ -1727,7 +1774,7 @@ export default function AdminDashboard() {
                   top: 0,
                   left: 0,
                   right: 0,
-                  height: '56px',
+                  height: 'calc(56px + env(safe-area-inset-top))',
                   zIndex: 999,
                   background: 'rgba(255, 255, 255, 0.85)',
                   backdropFilter: 'blur(12px)',
@@ -1735,7 +1782,10 @@ export default function AdminDashboard() {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
-                  padding: '0 16px',
+                  paddingTop: 'env(safe-area-inset-top)',
+                  paddingLeft: '16px',
+                  paddingRight: '16px',
+                  boxSizing: 'border-box',
                   boxShadow: '0 2px 10px rgba(0, 0, 0, 0.05)'
                 }}
               >
@@ -1802,7 +1852,7 @@ export default function AdminDashboard() {
             )}
 
             {/* Content Switcher */}
-            <div className="mobile-content-container" style={{ padding: '64px 0px 90px' }}>
+            <div className="mobile-content-container" style={{ padding: 'calc(64px + env(safe-area-inset-top)) 0px calc(90px + env(safe-area-inset-bottom))' }}>
               {activeTab === 'dashboard' && renderMobileDashboard()}
 
               {/* ── Timetable ── */}

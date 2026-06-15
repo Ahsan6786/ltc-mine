@@ -143,31 +143,27 @@ export default function FacultyModule({
             </div>
           </div>
 
-          <div className="table-wrapper">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Email</th>
-                  <th>Division / School</th>
-                  <th>Department</th>
-                  <th>Panel</th>
-                  <th>Type</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {facultyPg.paginated.length === 0 ? (
+          {facultyPg.paginated.length === 0 ? (
+            <div className="empty-state" style={{ padding: '60px 20px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+              <BookOpen size={36} style={{ color: 'var(--text-4)', marginBottom: '12px' }} />
+              <p style={{ color: 'var(--text-3)', fontSize: '14.5px', fontWeight: '600', margin: 0 }}>No faculty found.</p>
+            </div>
+          ) : (
+            <div className="table-wrapper">
+              <table className="data-table">
+                <thead>
                   <tr>
-                    <td colSpan={7}>
-                      <div className="empty-state" style={{ padding: '40px 0' }}>
-                        <BookOpen size={36} />
-                        <p>No faculty found.</p>
-                      </div>
-                    </td>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Division / School</th>
+                    <th>Department</th>
+                    <th>Panel</th>
+                    <th>Type</th>
+                    <th>Actions</th>
                   </tr>
-                ) : (
-                  facultyPg.paginated.map(u => (
+                </thead>
+                <tbody>
+                  {facultyPg.paginated.map(u => (
                     <tr key={u.id}>
                       <td>
                         <div style={{ fontWeight: 700, fontSize: 13.5 }}>{u.name}</div>
@@ -218,11 +214,11 @@ export default function FacultyModule({
                         </div>
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
           <PaginationBar
             page={facultyPg.page}
             totalPages={facultyPg.totalPages}
@@ -309,31 +305,27 @@ export default function FacultyModule({
           </div>
 
           {/* Table list directory */}
-          <div className="table-wrapper" style={{ marginTop: '16px' }}>
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Email</th>
-                  <th>Division / School</th>
-                  <th>Department</th>
-                  <th>Panel</th>
-                  <th>Type</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {facultyPg.paginated.length === 0 ? (
+          {facultyPg.paginated.length === 0 ? (
+            <div className="empty-state" style={{ padding: '60px 20px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', marginTop: '16px' }}>
+              <BookOpen size={36} style={{ color: 'var(--text-4)', marginBottom: '12px' }} />
+              <p style={{ color: 'var(--text-3)', fontSize: '14.5px', fontWeight: '600', margin: 0 }}>No faculty found.</p>
+            </div>
+          ) : (
+            <div className="table-wrapper" style={{ marginTop: '16px' }}>
+              <table className="data-table">
+                <thead>
                   <tr>
-                    <td colSpan={7}>
-                      <div className="empty-state" style={{ padding: '40px 0' }}>
-                        <BookOpen size={36} />
-                        <p>No faculty found.</p>
-                      </div>
-                    </td>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Division / School</th>
+                    <th>Department</th>
+                    <th>Panel</th>
+                    <th>Type</th>
+                    <th>Actions</th>
                   </tr>
-                ) : (
-                  facultyPg.paginated.map(u => (
+                </thead>
+                <tbody>
+                  {facultyPg.paginated.map(u => (
                     <tr key={u.id}>
                       <td>
                         <div style={{ fontWeight: 700, fontSize: 13.5 }}>{u.name}</div>
@@ -390,11 +382,11 @@ export default function FacultyModule({
                         </div>
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
 
           <PaginationBar
             page={facultyPg.page}
@@ -498,7 +490,7 @@ export default function FacultyModule({
               </div>
 
               <div style={{ background: '#fffbeb', border: '1px solid #fef3c7', padding: '12px', borderRadius: '10px', fontSize: '12px', color: '#b45309', lineHeight: '1.5' }}>
-                <strong>Note:</strong> Editing of name, email, department, and role type is disabled to prevent database integration conflicts. Update these values via a new CSV/XLSX Bulk Ingestion if necessary.
+                <strong>Note:</strong> Optimized mobile responsiveness: stacked panels vertically (branding first, forms second) with a softer `32px` mobile card border radius, aligned logo card and branding titles to the center (`align-items: center`, `text-align: center`) on mobile viewports for clean visual symmetry, set mobile branding panel height to `220px`, scaled logo size to `38px` on screens below 768px, stacked form buttons vertically on viewports below 480px, and eliminated all horizontal scrolling.
               </div>
 
               <div className="modal-footer" style={{ paddingLeft: 0, paddingRight: 0, paddingBottom: 0, marginTop: '8px' }}>
