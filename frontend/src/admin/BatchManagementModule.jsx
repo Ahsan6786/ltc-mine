@@ -862,7 +862,7 @@ function BatchDetail({ batch, token, toast, onBack, onRefresh }) {
   const statusColor = { active: 'green', upcoming: 'blue', completed: 'gray', archived: 'gray' }[batch.status] || 'gray'
 
   return (
-    <div className="animate-fade-in">
+    <div className="batch-management-page animate-fade-in">
       <div className="batch-detail-header-wrapper">
         <button className="btn btn-outline btn-sm detail-header-back-btn" onClick={onBack}><ChevronLeft size={14} /> All Batches</button>
         
@@ -1009,7 +1009,7 @@ export default function BatchManagementModule({ token, onBatchesChange }) {
 
   if (selectedBatch) {
     return (
-      <>
+      <div className="batch-management-page">
         <BatchDetail
           batch={selectedBatch}
           token={token}
@@ -1025,12 +1025,12 @@ export default function BatchManagementModule({ token, onBatchesChange }) {
           }}
         />
         <ToastContainer toasts={toasts} />
-      </>
+      </div>
     )
   }
 
   return (
-    <div className="animate-fade-in">
+    <div className="batch-management-page animate-fade-in">
       <div className="page-header">
         <div className="page-header-left">
           <h2 className="page-title">Batch Management</h2>

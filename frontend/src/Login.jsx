@@ -51,11 +51,12 @@ export default function Login() {
       <style>{`
         .login-page-container {
           min-height: 100vh;
+          overflow-y: auto;
           display: flex;
           align-items: center;
           justify-content: center;
           background: linear-gradient(135deg, #f8fafc 0%, #cbd5e1 100%);
-          padding: 40px 20px;
+          padding: 20px 10px;
           font-family: 'Inter', system-ui, -apple-system, sans-serif;
           box-sizing: border-box;
           position: relative;
@@ -88,9 +89,9 @@ export default function Login() {
         
         .login-card {
           display: flex;
-          width: 100%;
-          max-width: 1120px;
-          min-height: 560px;
+          width: 90%;
+          max-width: 1000px;
+          height: 520px;
           background: #ffffff;
           border-radius: 36px;
           box-shadow: 0 20px 50px rgba(0, 5, 20, 0.08);
@@ -305,63 +306,83 @@ export default function Login() {
         
         @media (max-width: 768px) {
           .login-back-btn {
-            position: absolute;
-            top: 12px;
-            left: 12px;
-            padding: 6px 12px;
-            font-size: 11.5px;
+            display: none;
           }
           .login-page-container {
-            padding: 10px;
+            min-height: 100vh;
+            overflow-y: auto;
+            padding: 24px 12px;
           }
           .login-card {
             flex-direction: column;
-            border-radius: 32px;
-            min-height: auto;
+            border-radius: 24px;
+            height: auto;
+            max-height: calc(100vh - 24px);
+            width: 92%;
+            max-width: 420px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
           }
           .login-left {
             width: 100%;
-            height: auto;
-            min-height: 200px;
-            padding: 32px 20px;
+            height: 130px;
+            min-height: 130px;
+            padding: 16px;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            text-align: center;
-            gap: 18px;
+            gap: 8px;
             background-position: center center !important;
           }
-          .login-right {
-            width: 100%;
-            padding: 32px 20px;
-          }
-          .login-brand-title {
-            font-size: 26px !important;
-            text-align: center !important;
-            letter-spacing: -0.5px !important;
-            line-height: 1.2 !important;
-          }
-          .login-brand-subtitle {
-            font-size: 15px !important;
-            text-align: center !important;
-          }
           .solid-logo-card {
-            padding: 12px 20px;
+            padding: 6px 12px !important;
             align-self: center !important;
             display: flex !important;
             justify-content: center !important;
+            border-radius: 12px !important;
           }
           .login-logo-img {
-            height: 42px !important;
+            height: 28px !important;
           }
           .branding-text-container {
-            margin: 0;
-            text-align: center;
+            margin: 0 !important;
+            text-align: center !important;
+            align-items: center !important;
+            display: flex !important;
+            flex-direction: column !important;
+          }
+          .login-brand-title {
+            font-size: 16px !important;
+            text-align: center !important;
+            letter-spacing: -0.3px !important;
+            line-height: 1.2 !important;
+            margin: 0 !important;
+            font-weight: 750 !important;
+          }
+          .login-brand-subtitle {
+            display: block !important;
+            font-size: 12px !important;
+            text-align: center !important;
+            color: rgba(255, 255, 255, 0.8) !important;
+            margin-top: 2px !important;
+          }
+          .login-right {
             width: 100%;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
+            padding: 24px 20px !important;
+          }
+          .login-form-wrapper {
+            max-width: 100%;
+          }
+          .login-pill-input-group {
+            margin-bottom: 12px !important;
+          }
+          .login-pill-input-container {
+            height: 40px !important;
+          }
+          .login-btn-primary, .login-btn-secondary {
+            height: 40px !important;
+            font-size: 13.5px !important;
           }
         }
 
@@ -401,7 +422,7 @@ export default function Login() {
         {/* Right Side: Login Form */}
         <div className="login-right">
           <div className="login-form-wrapper">
-            <div style={{ marginBottom: '24px' }}>
+            <div style={{ marginBottom: '24px', textAlign: 'center' }}>
               <h2 style={{ fontSize: '28px', fontWeight: '800', color: '#002B73', margin: 0, letterSpacing: '-0.5px' }}>
                 Login
               </h2>

@@ -131,6 +131,7 @@ export default function AdminDashboard() {
   const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 1024)
   const [mobileSubTool, setMobileSubTool] = useState(null)
   const [mobilePeopleTab, setMobilePeopleTab] = useState('faculty')
+  const [showHeroBanner, setShowHeroBanner] = useState(true)
 
   // Data
   const [users, setUsers] = useState([])
@@ -697,94 +698,107 @@ export default function AdminDashboard() {
 
     return (
       <div className="mobile-dashboard animate-fade-in" style={{ padding: '0 16px 16px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
-        {/* SECTION 1: Header */}
-        <div className="mobile-dashboard-header" style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          background: 'linear-gradient(135deg, #07111f 0%, #112240 100%)',
-          padding: '20px',
-          borderRadius: '24px',
-          color: '#ffffff',
-          boxShadow: '0 10px 30px rgba(7, 17, 31, 0.15)',
-          position: 'relative',
-          overflow: 'hidden'
-        }}>
-          {/* Subtle light leak */}
-          <div style={{ position: 'absolute', top: '-50px', right: '-50px', width: '150px', height: '150px', borderRadius: '50%', background: 'rgba(37, 99, 235, 0.35)', filter: 'blur(30px)' }} />
-          
-          <div style={{ zIndex: 1 }}>
-            <h2 style={{ fontSize: '20px', fontWeight: '800', margin: 0, letterSpacing: '-0.5px' }}>
-              {getGreeting()}
-            </h2>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '6px' }}>
-              <span className="mobile-pulsing-dot" />
-              <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: '600' }}>System Operational</span>
+        {/* SECTION 1: Premium Hero Banner */}
+        <div style={{ overflow: 'hidden', transition: 'max-height 0.4s ease, opacity 0.4s ease, margin 0.4s ease', maxHeight: showHeroBanner ? '300px' : '0', opacity: showHeroBanner ? 1 : 0, marginBottom: showHeroBanner ? '0' : '-24px' }}>
+          <div className="hero-banner" style={{ position: 'relative' }}>
+            <button 
+              onClick={() => setShowHeroBanner(false)} 
+              style={{ position: 'absolute', top: '12px', right: '12px', background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', borderRadius: '50%', width: '24px', height: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 20, transition: 'background 0.2s' }}
+              title="Hide Greeting"
+            >
+              <X size={14} />
+            </button>
+            <div className="hero-orb hero-orb--1" />
+            <div className="hero-orb hero-orb--2" />
+            <div className="hero-orb hero-orb--3" />
+            <div className="hero-grid-overlay" />
+            <div className="hero-curves">
+              <svg viewBox="0 0 1200 400" preserveAspectRatio="none">
+                <path d="M0,200 Q200,100 400,200 T800,200 T1200,200" />
+                <path d="M0,250 Q300,150 500,250 T900,220 T1200,260" />
+                <path d="M0,150 Q250,250 450,150 T850,180 T1200,140" />
+              </svg>
+            </div>
+            <div className="hero-particles">
+              <div className="hero-particle" />
+              <div className="hero-particle" />
+              <div className="hero-particle" />
+              <div className="hero-particle" />
+            </div>
+            <img src="/ltc.png" alt="" className="hero-watermark" aria-hidden="true" />
+            <div className="hero-edge-glow" />
+            <div className="hero-accent-line" />
+            <div className="hero-content">
+              <div className="hero-text-col">
+                <h2 className="hero-greeting">{getGreetingConfig().text}</h2>
+                <div className="hero-status-line">
+                  <span className="hero-status-dot" />
+                  <span className="hero-status-text">System Operational</span>
+                </div>
+              </div>
             </div>
           </div>
-
-
         </div>
 
         {/* SECTION 2: Statistics Cards (2x2 Grid) */}
         <div className="desktop-stats-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: 0 }}>
-          <div className="desktop-stat-card blue" onClick={() => setActiveTab('faculty')} style={{ background: "linear-gradient(135deg, rgba(37, 99, 235, 0.88) 0%, rgba(29, 78, 216, 0.92) 100%), url('/c.png') no-repeat center/cover" }}>
-            <div className="desktop-stat-header">
-              <span className="desktop-stat-title">Faculty</span>
-              <div className="desktop-stat-icon-wrap">
-                <BookOpen size={20} />
+          <div className="desktop-stat-card white-card" onClick={() => setActiveTab('faculty')}>
+            <div className="stat-card-top">
+              <div className="stat-circle-icon blue">
+                <BookOpen size={16} />
+              </div>
+              <div className="stat-card-text-group">
+                <span className="stat-card-title">Faculty</span>
+                <span className="stat-card-value">{facCount}</span>
               </div>
             </div>
-            <div>
-              <div className="desktop-stat-value">{facCount}</div>
-              <div className="desktop-stat-footer">
-                <span>View Directory &rarr;</span>
-              </div>
-            </div>
-          </div>
-          
-          <div className="desktop-stat-card purple" onClick={() => setActiveTab('students')} style={{ background: "linear-gradient(135deg, rgba(124, 58, 237, 0.88) 0%, rgba(109, 40, 217, 0.92) 100%), url('/c1.png') no-repeat center/cover" }}>
-            <div className="desktop-stat-header">
-              <span className="desktop-stat-title">Students</span>
-              <div className="desktop-stat-icon-wrap">
-                <GraduationCap size={20} />
-              </div>
-            </div>
-            <div>
-              <div className="desktop-stat-value">{studCount}</div>
-              <div className="desktop-stat-footer">
-                <span>View Directory &rarr;</span>
-              </div>
+            <div className="stat-card-bottom">
+              <span className="stat-card-link blue">View Directory &rarr;</span>
             </div>
           </div>
 
-          <div className="desktop-stat-card green" onClick={() => setActiveTab('batches')} style={{ background: "linear-gradient(135deg, rgba(5, 150, 105, 0.88) 0%, rgba(4, 120, 87, 0.92) 100%), url('/c2.png') no-repeat center/cover" }}>
-            <div className="desktop-stat-header">
-              <span className="desktop-stat-title">Batches</span>
-              <div className="desktop-stat-icon-wrap">
-                <Layers size={20} />
+          <div className="desktop-stat-card white-card" onClick={() => setActiveTab('students')}>
+            <div className="stat-card-top">
+              <div className="stat-circle-icon purple">
+                <GraduationCap size={16} />
+              </div>
+              <div className="stat-card-text-group">
+                <span className="stat-card-title">Students</span>
+                <span className="stat-card-value">{studCount.toLocaleString('en-IN')}</span>
               </div>
             </div>
-            <div>
-              <div className="desktop-stat-value">{batchCount}</div>
-              <div className="desktop-stat-footer">
-                <span>Manage Batches &rarr;</span>
-              </div>
+            <div className="stat-card-bottom">
+              <span className="stat-card-link purple">View Directory &rarr;</span>
             </div>
           </div>
 
-          <div className="desktop-stat-card orange" onClick={() => setActiveTab('ltcmembers')} style={{ background: "linear-gradient(135deg, rgba(234, 88, 12, 0.88) 0%, rgba(194, 65, 12, 0.92) 100%), url('/c3.png') no-repeat center/cover" }}>
-            <div className="desktop-stat-header">
-              <span className="desktop-stat-title">LTC Members</span>
-              <div className="desktop-stat-icon-wrap">
-                <Users size={20} />
+          <div className="desktop-stat-card white-card" onClick={() => setActiveTab('batches')}>
+            <div className="stat-card-top">
+              <div className="stat-circle-icon green">
+                <Layers size={16} />
+              </div>
+              <div className="stat-card-text-group">
+                <span className="stat-card-title">Batches</span>
+                <span className="stat-card-value">{batchCount}</span>
               </div>
             </div>
-            <div>
-              <div className="desktop-stat-value">{ltcCount}</div>
-              <div className="desktop-stat-footer">
-                <span>View Members &rarr;</span>
+            <div className="stat-card-bottom">
+              <span className="stat-card-link green">Manage Batches &rarr;</span>
+            </div>
+          </div>
+
+          <div className="desktop-stat-card white-card" onClick={() => setActiveTab('ltcmembers')}>
+            <div className="stat-card-top">
+              <div className="stat-circle-icon orange">
+                <Users size={16} />
               </div>
+              <div className="stat-card-text-group">
+                <span className="stat-card-title">LTC Members</span>
+                <span className="stat-card-value">{ltcCount}</span>
+              </div>
+            </div>
+            <div className="stat-card-bottom">
+              <span className="stat-card-link orange">View Members &rarr;</span>
             </div>
           </div>
         </div>
@@ -832,27 +846,40 @@ export default function AdminDashboard() {
           </div>
           <div className="mobile-schedule-card">
             <div className="mobile-schedule-timeline">
-              {MOCK_SCHEDULE.map((sch, idx) => (
-                <div key={idx} className="mobile-schedule-timeline-item">
-                  <div className="mobile-schedule-time-col">
-                    <span className="mobile-schedule-time">{sch.time.split(' ')[0]}</span>
-                    <span className="mobile-schedule-ampm">{sch.time.split(' ')[1]}</span>
-                  </div>
-                  <div className="mobile-schedule-line-col">
-                    <div className="mobile-schedule-icon-wrapper" style={{ border: '1.5px solid #e2e8f0', color: '#64748b', backgroundColor: '#f8fafc' }}>
-                      {getScheduleIcon(sch.iconName, '#64748b', 11)}
+              {MOCK_SCHEDULE.map((sch, idx) => {
+                let badgeClass = 'blue';
+                let IconComponent = User;
+                if (idx === 1) { badgeClass = 'purple'; IconComponent = BookOpen; }
+                else if (idx === 2) { badgeClass = 'green'; IconComponent = Users; }
+                else if (idx === 3) { badgeClass = 'orange'; IconComponent = ClipboardList; }
+
+                return (
+                  <div key={idx} className="mobile-schedule-timeline-item">
+                    <div className="mobile-schedule-time-col">
+                      <span className="mobile-schedule-time">{sch.time.split(' ')[0]}</span>
+                      <span className="mobile-schedule-ampm">{sch.time.split(' ')[1]}</span>
                     </div>
-                    {idx < MOCK_SCHEDULE.length - 1 && <span className="mobile-schedule-line" />}
-                  </div>
-                  <div className="mobile-schedule-content-col">
-                    <div className="mobile-schedule-event">{sch.event}</div>
-                    <div className="mobile-schedule-meta">
-                      <MapPin size={11} />
-                      <span>{sch.location}</span>
+                    <div className="mobile-schedule-line-col">
+                      <div className={`mobile-schedule-icon-wrapper ${badgeClass}`}>
+                        <IconComponent size={11} />
+                      </div>
+                      {idx < MOCK_SCHEDULE.length - 1 && <span className="mobile-schedule-line" />}
+                    </div>
+                    <div className="mobile-schedule-content-col">
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                        <div>
+                          <div className="mobile-schedule-event">{sch.event}</div>
+                          <div className="mobile-schedule-meta">
+                            <MapPin size={11} />
+                            <span>{sch.location}</span>
+                          </div>
+                        </div>
+                        <span className={`upcoming-badge ${badgeClass}`} style={{ fontSize: '9px', padding: '2px 6px' }}>Upcoming</span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>
@@ -1120,11 +1147,31 @@ export default function AdminDashboard() {
   }
 
   // ─── Desktop Redesign Render Helpers ─────────────────────────────────────────
+  const getGreetingConfig = () => {
+    const hours = new Date().getHours()
+    if (hours < 12) {
+      return {
+        text: 'Good Morning, Admin! 🌅',
+        sub: 'Have a productive and wonderful morning'
+      }
+    }
+    if (hours < 18) {
+      return {
+        text: 'Good Afternoon, Admin! ☀️',
+        sub: 'Hope your day is going smoothly'
+      }
+    }
+    return {
+      text: 'Good Evening, Admin! 🌙',
+      sub: 'Wrapping up the day — great work today'
+    }
+  }
+
   const getGreeting = () => {
     const hours = new Date().getHours()
-    if (hours < 12) return 'Good Morning, Admin! 🌅'
-    if (hours < 18) return 'Good Afternoon, Admin! ☀️'
-    return 'Good Evening, Admin!'
+    if (hours < 12) return 'Good Morning, Admin'
+    if (hours < 18) return 'Good Afternoon, Admin'
+    return 'Good Evening, Admin'
   }
 
   const renderDonutChart = () => {
@@ -1266,84 +1313,143 @@ export default function AdminDashboard() {
 
     return (
       <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '36px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px' }}>
-          <div>
-            <h1 style={{ fontSize: '28px', fontWeight: '800', color: '#0f172a', margin: 0 }}>
-              {getGreeting()}
-            </h1>
-            <p style={{ fontSize: '14px', color: '#64748b', fontWeight: '500', marginTop: '6px' }}>
-              Welcome back to LTC Admin Portal
-            </p>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <button className="btn btn-outline btn-sm" style={{ padding: '8px', position: 'relative', height: '34px', background: 'white' }} title="Notifications">
-              <Bell size={14} />
-              <span style={{ position: 'absolute', top: '2px', right: '2px', width: '5px', height: '5px', background: '#ef4444', borderRadius: '50%' }} />
+        {/* ═══ PREMIUM HERO BANNER ═══ */}
+        <div style={{ overflow: 'hidden', transition: 'max-height 0.4s ease, opacity 0.4s ease, margin 0.4s ease', maxHeight: showHeroBanner ? '300px' : '0', opacity: showHeroBanner ? 1 : 0, marginBottom: showHeroBanner ? '0' : '-36px' }}>
+          <div className="hero-banner" style={{ position: 'relative' }}>
+            <button 
+              onClick={() => setShowHeroBanner(false)} 
+              style={{ position: 'absolute', top: '16px', right: '16px', background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', borderRadius: '50%', width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 20, transition: 'background 0.2s' }}
+              title="Hide Greeting"
+            >
+              <X size={16} />
             </button>
-            <button className="btn btn-outline btn-sm" style={{ height: '34px' }} onClick={refreshAllData} title="Refresh Dashboard">
-              <RefreshCw size={14} />
-            </button>
+            {/* Ambient floating orbs */}
+            <div className="hero-orb hero-orb--1" />
+            <div className="hero-orb hero-orb--2" />
+            <div className="hero-orb hero-orb--3" />
+
+            {/* Subtle grid overlay */}
+            <div className="hero-grid-overlay" />
+
+            {/* Flowing curves */}
+            <div className="hero-curves">
+              <svg viewBox="0 0 1200 400" preserveAspectRatio="none">
+                <path d="M0,200 Q200,100 400,200 T800,200 T1200,200" />
+                <path d="M0,250 Q300,150 500,250 T900,220 T1200,260" />
+                <path d="M0,150 Q250,250 450,150 T850,180 T1200,140" />
+              </svg>
+            </div>
+
+            {/* Floating particles */}
+            <div className="hero-particles">
+              <div className="hero-particle" />
+              <div className="hero-particle" />
+              <div className="hero-particle" />
+              <div className="hero-particle" />
+              <div className="hero-particle" />
+              <div className="hero-particle" />
+              <div className="hero-particle" />
+              <div className="hero-particle" />
+            </div>
+
+            {/* LTC Watermark */}
+            <img src="/ltc.png" alt="" className="hero-watermark" aria-hidden="true" />
+
+            {/* Edge glow */}
+            <div className="hero-edge-glow" />
+            <div className="hero-accent-line" />
+
+            {/* Left: Content */}
+            <div className="hero-content">
+              <div className="hero-text-col">
+                <h1 className="hero-greeting">{getGreetingConfig().text}</h1>
+                <div className="hero-status-line">
+                  <span className="hero-status-dot" />
+                  <span className="hero-status-text">System Operational</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Right: Actions */}
+            <div className="hero-actions" style={{ marginRight: '32px' }}>
+              <button className="hero-action-btn hero-action-btn--icon-only" title="Notifications">
+                <Bell size={17} />
+                <span className="hero-notification-dot" />
+              </button>
+              <button className="hero-action-btn" onClick={refreshAllData} title="Refresh Dashboard">
+                <RefreshCw size={15} />
+                <span>Refresh</span>
+              </button>
+            </div>
           </div>
         </div>
 
         <div className="desktop-stats-grid">
-          <div className="desktop-stat-card blue" onClick={() => setActiveTab('faculty')} style={{ background: "linear-gradient(135deg, rgba(37, 99, 235, 0.88) 0%, rgba(29, 78, 216, 0.92) 100%), url('/c.png') no-repeat center/cover" }}>
-            <div className="desktop-stat-header">
-              <span className="desktop-stat-title">Faculty</span>
-              <div className="desktop-stat-icon-wrap">
-                <BookOpen size={20} />
+          <div className="desktop-stat-card white-card" onClick={() => setActiveTab('faculty')}>
+            <div className="stat-card-top">
+              <div className="stat-circle-icon blue">
+                <BookOpen size={18} />
+              </div>
+              <div className="stat-card-text-group">
+                <span className="stat-card-title">Faculty</span>
+                <span className="stat-card-value">{facCount}</span>
               </div>
             </div>
-            <div>
-              <div className="desktop-stat-value">{facCount}</div>
-              <div className="desktop-stat-footer">
-                <span>View Directory &rarr;</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="desktop-stat-card purple" onClick={() => setActiveTab('students')} style={{ background: "linear-gradient(135deg, rgba(124, 58, 237, 0.88) 0%, rgba(109, 40, 217, 0.92) 100%), url('/c1.png') no-repeat center/cover" }}>
-            <div className="desktop-stat-header">
-              <span className="desktop-stat-title">Students</span>
-              <div className="desktop-stat-icon-wrap">
-                <GraduationCap size={20} />
-              </div>
-            </div>
-            <div>
-              <div className="desktop-stat-value">{studCount}</div>
-              <div className="desktop-stat-footer">
-                <span>View Directory &rarr;</span>
-              </div>
+            <div className="stat-card-bottom">
+              <span className="stat-card-link blue">View Directory &rarr;</span>
+              <svg className="mini-chart" viewBox="0 0 100 30" width="80" height="24">
+                <path d="M0,25 Q15,10 30,20 T60,5 T90,2" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" />
+              </svg>
             </div>
           </div>
 
-          <div className="desktop-stat-card green" onClick={() => setActiveTab('batches')} style={{ background: "linear-gradient(135deg, rgba(5, 150, 105, 0.88) 0%, rgba(4, 120, 87, 0.92) 100%), url('/c2.png') no-repeat center/cover" }}>
-            <div className="desktop-stat-header">
-              <span className="desktop-stat-title">Batches</span>
-              <div className="desktop-stat-icon-wrap">
-                <Layers size={20} />
+          <div className="desktop-stat-card white-card" onClick={() => setActiveTab('students')}>
+            <div className="stat-card-top">
+              <div className="stat-circle-icon purple">
+                <GraduationCap size={18} />
+              </div>
+              <div className="stat-card-text-group">
+                <span className="stat-card-title">Students</span>
+                <span className="stat-card-value">{studCount.toLocaleString('en-IN')}</span>
               </div>
             </div>
-            <div>
-              <div className="desktop-stat-value">{batchCount}</div>
-              <div className="desktop-stat-footer">
-                <span>Manage Batches &rarr;</span>
-              </div>
+            <div className="stat-card-bottom">
+              <span className="stat-card-link purple">View Directory &rarr;</span>
+              <svg className="mini-chart" viewBox="0 0 100 30" width="80" height="24">
+                <path d="M0,25 Q20,15 40,25 T80,8 T90,2" fill="none" stroke="#7c3aed" strokeWidth="2" strokeLinecap="round" />
+              </svg>
             </div>
           </div>
 
-          <div className="desktop-stat-card orange" onClick={() => setActiveTab('ltcmembers')} style={{ background: "linear-gradient(135deg, rgba(234, 88, 12, 0.88) 0%, rgba(194, 65, 12, 0.92) 100%), url('/c3.png') no-repeat center/cover" }}>
-            <div className="desktop-stat-header">
-              <span className="desktop-stat-title">LTC Members</span>
-              <div className="desktop-stat-icon-wrap">
-                <Users size={20} />
+          <div className="desktop-stat-card white-card" onClick={() => setActiveTab('batches')}>
+            <div className="stat-card-top">
+              <div className="stat-circle-icon green">
+                <Layers size={18} />
+              </div>
+              <div className="stat-card-text-group">
+                <span className="stat-card-title">Batches</span>
+                <span className="stat-card-value">{batchCount}</span>
               </div>
             </div>
-            <div>
-              <div className="desktop-stat-value">{ltcCount}</div>
-              <div className="desktop-stat-footer">
-                <span>View Members &rarr;</span>
+            <div className="stat-card-bottom">
+              <span className="stat-card-link green">Manage Batches &rarr;</span>
+              <div style={{ width: '60px', height: '2px', background: '#059669', opacity: 0.8 }} />
+            </div>
+          </div>
+
+          <div className="desktop-stat-card white-card" onClick={() => setActiveTab('ltcmembers')}>
+            <div className="stat-card-top">
+              <div className="stat-circle-icon orange">
+                <Users size={18} />
               </div>
+              <div className="stat-card-text-group">
+                <span className="stat-card-title">LTC Members</span>
+                <span className="stat-card-value">{ltcCount}</span>
+              </div>
+            </div>
+            <div className="stat-card-bottom">
+              <span className="stat-card-link orange">View Members &rarr;</span>
+              <div style={{ width: '60px', height: '2px', background: '#ea580c', opacity: 0.8 }} />
             </div>
           </div>
         </div>
@@ -1361,35 +1467,48 @@ export default function AdminDashboard() {
             </div>
             
             <div className="desktop-schedule-list" style={{ paddingLeft: 0 }}>
-              {MOCK_SCHEDULE.map((sch, idx) => (
-                <div key={idx} className="desktop-schedule-item">
-                  <div className="desktop-schedule-time-col">
-                    <span className="desktop-schedule-time">{sch.time.split(' ')[0]}</span>
-                    <span className="desktop-schedule-ampm">{sch.time.split(' ')[1]}</span>
-                  </div>
-                  
-                   <div className="desktop-schedule-line-col">
-                    <div className="desktop-schedule-icon-wrapper" style={{ border: '2px solid #e2e8f0', color: '#64748b', backgroundColor: '#f8fafc' }}>
-                      {getScheduleIcon(sch.iconName, '#64748b', 14)}
-                    </div>
-                    {idx < MOCK_SCHEDULE.length - 1 && <div className="desktop-schedule-line" />}
-                  </div>
+              {MOCK_SCHEDULE.map((sch, idx) => {
+                let badgeClass = 'blue';
+                let IconComponent = User;
+                if (idx === 1) { badgeClass = 'purple'; IconComponent = BookOpen; }
+                else if (idx === 2) { badgeClass = 'green'; IconComponent = Users; }
+                else if (idx === 3) { badgeClass = 'orange'; IconComponent = ClipboardList; }
 
-                  <div className="desktop-schedule-content">
-                    <div className="desktop-schedule-title">{sch.event}</div>
-                    <div className="desktop-schedule-location">
-                      <MapPin size={12} />
-                      <span>{sch.location}</span>
+                return (
+                  <div key={idx} className="desktop-schedule-item">
+                    <div className="desktop-schedule-time-col">
+                      <span className="desktop-schedule-time">{sch.time.split(' ')[0]}</span>
+                      <span className="desktop-schedule-ampm">{sch.time.split(' ')[1]}</span>
+                    </div>
+                    
+                    <div className="desktop-schedule-line-col">
+                      <div className={`desktop-schedule-icon-wrapper ${badgeClass}`}>
+                        <IconComponent size={14} />
+                      </div>
+                      {idx < MOCK_SCHEDULE.length - 1 && <div className="desktop-schedule-line" />}
+                    </div>
+
+                    <div className="desktop-schedule-content">
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                        <div>
+                          <div className="desktop-schedule-title">{sch.event}</div>
+                          <div className="desktop-schedule-location">
+                            <MapPin size={12} />
+                            <span>{sch.location}</span>
+                          </div>
+                        </div>
+                        <span className={`upcoming-badge ${badgeClass}`}>Upcoming</span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 
           <div className="desktop-card" style={{ display: 'flex', flexDirection: 'column' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-              <h3 style={{ fontSize: '16px', fontWeight: '800', color: '#0f172a', margin: 0 }}>User Distribution</h3>
+              <h3 style={{ fontSize: '16px', fontWeight: '800', color: '#0f172a', margin: 0 }}>User Analytics</h3>
               <button 
                 onClick={() => setActiveTab('reports')} 
                 style={{ background: 'none', border: 'none', color: '#3b82f6', fontSize: '13px', fontWeight: '700', cursor: 'pointer' }}
@@ -1397,8 +1516,104 @@ export default function AdminDashboard() {
                 View Reports &rarr;
               </button>
             </div>
-            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              {renderDonutChart()}
+            
+            <div className="user-analytics-content" style={{ display: 'flex', flex: 1, gap: '24px', alignItems: 'flex-start' }}>
+              <div className="analytics-left-col" style={{ width: '120px', flexShrink: 0 }}>
+                <span style={{ fontSize: '12px', fontWeight: '600', color: '#64748b', display: 'block' }}>Total Users</span>
+                <span style={{ fontSize: '32px', fontWeight: '800', color: '#0f172a', display: 'block', margin: '4px 0 6px 0', letterSpacing: '-0.8px' }}>
+                  {(studCount + facCount + ltcCount + 1).toLocaleString('en-IN')}
+                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: '700', color: '#10b981' }}>
+                  <span>▲ 12.4%</span>
+                </div>
+                <span style={{ fontSize: '11px', color: '#94a3b8', display: 'block', marginTop: '2px' }}>vs last month</span>
+              </div>
+              
+              <div className="analytics-chart-col" style={{ flex: 1, position: 'relative', height: '140px' }}>
+                <svg viewBox="0 0 320 120" style={{ width: '100%', height: '100%', overflow: 'visible' }}>
+                  <defs>
+                    <linearGradient id="chart-grad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.2" />
+                      <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.0" />
+                    </linearGradient>
+                  </defs>
+                  
+                  <line x1="0" y1="20" x2="320" y2="20" stroke="#f1f5f9" strokeWidth="1" />
+                  <line x1="0" y1="50" x2="320" y2="50" stroke="#f1f5f9" strokeWidth="1" />
+                  <line x1="0" y1="80" x2="320" y2="80" stroke="#f1f5f9" strokeWidth="1" />
+                  <line x1="0" y1="110" x2="320" y2="110" stroke="#f1f5f9" strokeWidth="1" />
+                  
+                  <path d="M 0 90 Q 40 60 80 50 T 160 55 T 240 40 T 320 15 L 320 110 L 0 110 Z" fill="url(#chart-grad)" />
+                  <path d="M 0 90 Q 40 60 80 50 T 160 55 T 240 40 T 320 15" fill="none" stroke="#3b82f6" strokeWidth="2.5" strokeLinecap="round" />
+                  <circle cx="320" cy="15" r="4.5" fill="#3b82f6" stroke="#ffffff" strokeWidth="2" />
+                  
+                  <foreignObject x="270" y="-12" width="60" height="24">
+                    <div style={{ background: '#2563eb', color: '#ffffff', fontSize: '9px', fontWeight: '800', padding: '2px 5px', borderRadius: '6px', textAlign: 'center', boxShadow: '0 2px 6px rgba(37,99,235,0.3)' }}>
+                      {(studCount + facCount + ltcCount + 1).toLocaleString('en-IN')}
+                    </div>
+                  </foreignObject>
+                </svg>
+                
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px', fontWeight: '600', color: '#94a3b8', marginTop: '6px' }}>
+                  <span>May 12</span>
+                  <span>May 19</span>
+                  <span>May 26</span>
+                  <span>Jun 02</span>
+                  <span>Jun 09</span>
+                </div>
+              </div>
+            </div>
+            
+            <div style={{ height: '1px', background: '#f1f5f9', margin: '20px 0' }} />
+            
+            <div className="analytics-breakdown-row" style={{ display: 'flex', gap: '24px' }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontWeight: '700', color: '#2563eb', marginBottom: '4px' }}>
+                  <span>Students</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                  <span style={{ fontSize: '18px', fontWeight: '800', color: '#0f172a' }}>{studCount.toLocaleString('en-IN')}</span>
+                  <span style={{ fontSize: '10px', fontWeight: '700', color: '#10b981' }}>▲ 12.8%</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px' }}>
+                  <div style={{ flex: 1, height: '4px', background: '#f1f5f9', borderRadius: '2px', overflow: 'hidden' }}>
+                    <div style={{ width: '96.4%', height: '100%', background: '#2563eb' }} />
+                  </div>
+                  <span style={{ fontSize: '10px', fontWeight: '700', color: '#64748b', width: '30px', textAlign: 'right' }}>96.4%</span>
+                </div>
+              </div>
+
+              <div style={{ flex: 1 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontWeight: '700', color: '#059669', marginBottom: '4px' }}>
+                  <span>Faculty</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                  <span style={{ fontSize: '18px', fontWeight: '800', color: '#0f172a' }}>{facCount}</span>
+                  <span style={{ fontSize: '10px', fontWeight: '700', color: '#10b981' }}>▲ 8.1%</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px' }}>
+                  <div style={{ flex: 1, height: '4px', background: '#f1f5f9', borderRadius: '2px', overflow: 'hidden' }}>
+                    <div style={{ width: '3.6%', height: '100%', background: '#059669' }} />
+                  </div>
+                  <span style={{ fontSize: '10px', fontWeight: '700', color: '#64748b', width: '30px', textAlign: 'right' }}>3.6%</span>
+                </div>
+              </div>
+
+              <div style={{ flex: 1 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontWeight: '700', color: '#64748b', marginBottom: '4px' }}>
+                  <span>Others</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                  <span style={{ fontSize: '18px', fontWeight: '800', color: '#0f172a' }}>{ltcCount + 1}</span>
+                  <span style={{ fontSize: '10px', fontWeight: '700', color: '#94a3b8' }}>&mdash; 0%</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px' }}>
+                  <div style={{ flex: 1, height: '4px', background: '#f1f5f9', borderRadius: '2px', overflow: 'hidden' }}>
+                    <div style={{ width: '0%', height: '100%', background: '#94a3b8' }} />
+                  </div>
+                  <span style={{ fontSize: '10px', fontWeight: '700', color: '#64748b', width: '30px', textAlign: 'right' }}>0%</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -1764,7 +1979,7 @@ export default function AdminDashboard() {
               <NavItem tab="reports" icon={<BarChart2 size={16} />} label="Reports & Logs" />
             </nav>
 
-            <div className="sidebar-footer" style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '16px 16px calc(16px + env(safe-area-inset-bottom))', borderTop: '1px solid rgba(255, 255, 255, 0.06)', background: 'transparent', width: '100%', boxSizing: 'border-box' }}>
+            <div className="sidebar-footer">
               <div className="sidebar-profile-card">
                 <div className="sidebar-profile-avatar">AD</div>
                 <div className="sidebar-profile-details">

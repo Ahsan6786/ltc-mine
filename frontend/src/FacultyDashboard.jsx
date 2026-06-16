@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { GraduationCap, Calendar, CheckSquare, FileText, Activity, LayoutDashboard, ClipboardList, PenTool, Search, LogOut, MessageSquare, Users, Bell, Menu, Clock, RefreshCw, X } from 'lucide-react'
+import { GraduationCap, Calendar, CheckSquare, FileText, Activity, LayoutDashboard, ClipboardList, PenTool, Search, LogOut, MessageSquare, Users, Bell, Menu, Clock, RefreshCw, X, Compass, Award, MapPin, BookOpen, User } from 'lucide-react'
 import ScrollToTop from './ScrollToTop'
 import TimetablePanel from './TimetablePanel'
 
@@ -24,6 +24,7 @@ export default function FacultyDashboard() {
   const [savedEvals, setSavedEvals] = useState({})             // confirmed saved per studentId
   const [allEvaluations, setAllEvaluations] = useState([])     // all fetched evaluations
   const [studentSearch, setStudentSearch] = useState('')
+  const [activeCardModal, setActiveCardModal] = useState(null)
   const [undertakingFilter, setUndertakingFilter] = useState('all')
   const [feedbackText, setFeedbackText] = useState('')
   const [feedbackCategory, setFeedbackCategory] = useState('General')
@@ -38,6 +39,7 @@ export default function FacultyDashboard() {
   const [isNotifOpen, setIsNotifOpen] = useState(false)
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768)
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+  const [showHeroBanner, setShowHeroBanner] = useState(true)
 
   useEffect(() => {
     const handleResize = () => {
@@ -484,12 +486,6 @@ export default function FacultyDashboard() {
               <span>My Overview</span>
             </span>
           </button>
-          <button className={`sidebar-item ${activeTab === 'nri' ? 'active' : ''}`} onClick={() => { setActiveTab('nri'); if (isMobile) setIsSidebarOpen(false); }}>
-            <span className="sidebar-item-content">
-              <Users size={16} />
-              <span>NRI Students</span>
-            </span>
-          </button>
           <button className={`sidebar-item ${activeTab === 'timetable' ? 'active' : ''}`} onClick={() => { setActiveTab('timetable'); if (isMobile) setIsSidebarOpen(false); }}>
             <span className="sidebar-item-content">
               <Clock size={16} />
@@ -498,12 +494,6 @@ export default function FacultyDashboard() {
           </button>
 
           <p className="sidebar-section-label">Performance</p>
-          <button className={`sidebar-item ${activeTab === 'schedules' ? 'active' : ''}`} onClick={() => { setActiveTab('schedules'); if (isMobile) setIsSidebarOpen(false); }}>
-            <span className="sidebar-item-content">
-              <Calendar size={16} />
-              <span>Activity Schedule</span>
-            </span>
-          </button>
           <button className={`sidebar-item ${activeTab === 'attendance' ? 'active' : ''}`} onClick={() => { setActiveTab('attendance'); if (isMobile) setIsSidebarOpen(false); }}>
             <span className="sidebar-item-content">
               <ClipboardList size={16} />
@@ -565,91 +555,290 @@ export default function FacultyDashboard() {
             {renderNotifications()}
           </div>
         )}
-        <div className="dashboard-header" style={{ marginBottom: '32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <p style={{ color: 'var(--text-muted)' }}>
-              {currentUser.division ? `Division: ${currentUser.division} | ` : ''}
-              {currentUser.school ? `School: ${currentUser.school} | ` : ''}
-              Department: {currentUser.department}
-            </p>
+        {activeTab !== 'dashboard' && (
+          <div style={{ marginBottom: '24px', display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+              {!isMobile && renderNotifications()}
+            </div>
           </div>
-          <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
-            {!isMobile && renderNotifications()}
-          </div>
-        </div>
+        )}
+
 
         {activeTab === 'timetable' && (
           <TimetablePanel />
         )}
 
-        {activeTab === 'dashboard' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }} className="animate-fade-in">
-            {/* Overview Detail Grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px' }}>
-              
-              {/* Faculty Profile Card */}
-              <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                <span style={{ fontSize: '11px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Faculty Profile</span>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <span style={{ fontSize: '18px', fontWeight: '800', color: '#0f172a' }}>{facultyInfo?.name || currentUser.name}</span>
-                  <span style={{ fontSize: '13px', color: '#64748b', fontWeight: '500' }}>{facultyInfo?.email || currentUser.email}</span>
+        {activeTab === 'dashboard' && (() => {
+          // Compute undertaking & feedback stats
+          const totalStudents = students.length
+          const undertakingSubmitted = students.filter(s => s.undertaking_submitted).length
+          const undertakingPending = totalStudents - undertakingSubmitted
+          const undertakingPct = totalStudents > 0 ? Math.round((undertakingSubmitted / totalStudents) * 100) : 0
+
+          const feedbackSubmitted = new Set(allEvaluations.map(e => e.student_id)).size
+          const feedbackPending = Math.max(0, totalStudents - feedbackSubmitted)
+          const feedbackPct = totalStudents > 0 ? Math.round((feedbackSubmitted / totalStudents) * 100) : 0
+
+          // greeting
+          const hours = new Date().getHours()
+          const facultyName = facultyInfo?.name || currentUser?.name || 'Faculty'
+          const firstName = facultyName.split(' ')[0]
+          let greetingText = ''
+          if (hours < 12) greetingText = `Good Morning, ${firstName}! 🌅`
+          else if (hours < 18) greetingText = `Good Afternoon, ${firstName}! 👋`
+          else greetingText = `Good Evening, ${firstName}! 🌙`
+
+          const FACULTY_SCHEDULE = [
+            { time: '09:00 AM', event: 'Meditation Session', location: 'Hall 1', iconName: 'compass' },
+            { time: '11:00 AM', event: 'Immersion Program', location: 'Batch 12', iconName: 'award' },
+            { time: '02:00 PM', event: 'Faculty Meeting', location: 'Conference Room', iconName: 'users' },
+            { time: '04:00 PM', event: 'Review & Feedback', location: 'Admin Office', iconName: 'activity' },
+          ]
+
+          const getIcon = (name) => {
+            if (name === 'compass') return <Compass size={14} />
+            if (name === 'award') return <Award size={14} />
+            if (name === 'users') return <Users size={14} />
+            return <Activity size={14} />
+          }
+
+          // SVG circle chart helper
+          const CircleChart = ({ pct, color, label, count, subtitle }) => {
+            const r = 45
+            const circ = 2 * Math.PI * r
+            const dash = (pct / 100) * circ
+            return (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', flex: 1 }}>
+                <div style={{ position: 'relative', width: 90, height: 90 }}>
+                  <svg width="90" height="90" viewBox="0 0 100 100">
+                    <circle cx="50" cy="50" r={r} fill="none" stroke="#f1f5f9" strokeWidth="8" />
+                    <circle
+                      cx="50" cy="50" r={r} fill="none"
+                      stroke={color} strokeWidth="8"
+                      strokeLinecap="round"
+                      strokeDasharray={`${dash} ${circ}`}
+                      strokeDashoffset={circ / 4}
+                      transform="rotate(0 50 50)"
+                      style={{ transition: 'stroke-dasharray 0.6s ease' }}
+                    />
+                  </svg>
+                  <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                    <span style={{ fontSize: '18px', fontWeight: '800', color: '#0f172a', lineHeight: 1 }}>{totalStudents > 0 ? `${pct}%` : count}</span>
+                  </div>
+                </div>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: '13px', fontWeight: '700', color: '#0f172a' }}>{label}</div>
+                  <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>{subtitle}</div>
                 </div>
               </div>
+            )
+          }
 
-              {/* Squad Details Card */}
-              <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                <span style={{ fontSize: '11px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Allocated Squad</span>
-                {facultyInfo?.squad ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                     <span style={{ fontSize: '18px', fontWeight: '800', color: '#0f172a' }}>{facultyInfo.squad}</span>
-                     <div style={{ display: 'flex', gap: '8px', fontSize: '12px', color: '#475569', fontWeight: '600', flexWrap: 'wrap' }}>
-                      <span>Students: {squadStudents.length}</span>
-                      <span style={{ color: '#cbd5e1' }}>|</span>
-                      <span>Ratio: F:{squadStudents.filter(s => s.gender && s.gender.toLowerCase() === 'female').length} M:{squadStudents.length - squadStudents.filter(s => s.gender && s.gender.toLowerCase() === 'female').length}</span>
+          return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }} className="animate-fade-in">
+
+            {/* ── Hero Banner ── */}
+            <div style={{ overflow: 'hidden', transition: 'max-height 0.4s ease, opacity 0.4s ease, margin 0.4s ease', maxHeight: showHeroBanner ? '300px' : '0', opacity: showHeroBanner ? 1 : 0, marginBottom: showHeroBanner ? '0' : '-24px' }}>
+              <div className="hero-banner" style={{ position: 'relative' }}>
+                <button 
+                  onClick={() => setShowHeroBanner(false)} 
+                  style={{ position: 'absolute', top: '12px', right: '12px', background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', borderRadius: '50%', width: '24px', height: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 20, transition: 'background 0.2s' }}
+                  title="Hide Greeting"
+                >
+                  <X size={14} />
+                </button>
+                <div className="hero-orb hero-orb--1" />
+                <div className="hero-orb hero-orb--2" />
+                <div className="hero-orb hero-orb--3" />
+                <div className="hero-grid-overlay" />
+                <div className="hero-curves">
+                  <svg viewBox="0 0 1200 400" preserveAspectRatio="none">
+                    <path d="M0,200 Q200,100 400,200 T800,200 T1200,200" />
+                    <path d="M0,250 Q300,150 500,250 T900,220 T1200,260" />
+                    <path d="M0,150 Q250,250 450,150 T850,180 T1200,140" />
+                  </svg>
+                </div>
+                <div className="hero-particles">
+                  <div className="hero-particle" />
+                  <div className="hero-particle" />
+                  <div className="hero-particle" />
+                  <div className="hero-particle" />
+                </div>
+                <img src="/ltc.png" alt="" className="hero-watermark" aria-hidden="true" />
+                <div className="hero-edge-glow" />
+                <div className="hero-accent-line" />
+                <div className="hero-content">
+                  <div className="hero-text-col">
+                    <h1 className="hero-greeting">{greetingText}</h1>
+                    <div className="hero-status-line">
+                      <span className="hero-status-dot" />
+                      <span className="hero-status-text">System Operational</span>
                     </div>
                   </div>
-                ) : (
-                  <span style={{ fontSize: '13px', color: '#94a3b8', fontStyle: 'italic', fontWeight: '500' }}>No Squad allocated yet.</span>
-                )}
-              </div>
-
-              {/* Squad Leader Card */}
-              <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                <span style={{ fontSize: '11px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Squad Leader</span>
-                {squadLeader ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    <span style={{ fontSize: '18px', fontWeight: '800', color: '#0f172a' }}>{squadLeader.name}</span>
-                    <span style={{ fontSize: '12px', color: '#64748b', fontWeight: '500' }}>{squadLeader.email}</span>
-                  </div>
-                ) : (
-                  <span style={{ fontSize: '13px', color: '#94a3b8', fontStyle: 'italic', fontWeight: '500' }}>No squad leader assigned.</span>
-                )}
-              </div>
-
-              {/* Faculty Colleagues Card */}
-              <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '4px' }}>
-                  <span style={{ fontSize: '11px', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Faculty Colleagues</span>
-                  <span style={{ background: 'rgba(59, 130, 246, 0.1)', color: '#2563eb', borderRadius: '4px', padding: '2px 6px', fontSize: '10px', fontWeight: '750' }}>{facultyInfo?.squad || 'Same Squad'}</span>
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '180px', overflowY: 'auto', paddingRight: '4px' }}>
-                  {batchFaculty.filter(f => f.id !== (facultyInfo?.id || currentUser?.id)).length > 0 ? (
-                    batchFaculty.filter(f => f.id !== (facultyInfo?.id || currentUser?.id)).map(colleague => {
-                      const inSameSquad = colleague.squad && colleague.squad === facultyInfo?.squad;
-                      return (
-                        <div key={colleague.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 8px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #f1f5f9' }}>
-                          <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: inSameSquad ? 'linear-gradient(135deg, var(--primary-light) 0%, var(--primary-dark) 100%)' : '#e2e8f0', color: inSameSquad ? '#ffffff' : '#475569', fontSize: '10px', fontWeight: '700', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                            {colleague.name ? colleague.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : 'FC'}
-                          </div>
-                          <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-                            <span style={{ fontSize: '12.5px', fontWeight: '600', color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{colleague.name}</span>
+                <div className="hero-actions" style={{ marginRight: '24px' }}>
+                  <button className="hero-action-btn hero-action-btn--icon-only" title="Notifications" onClick={() => setIsNotifOpen(!isNotifOpen)}>
+                    <Bell size={17} />
+                    {unreadCount > 0 && <span className="hero-notification-dot" />}
+                  </button>
+                  <button className="hero-action-btn" onClick={fetchDashboardData} title="Refresh">
+                    <RefreshCw size={15} />
+                    <span>Refresh</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* ── Overview Info Cards ── */}
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px' }}>
+              {/* Faculty Profile */}
+              <div className="faculty-overview-card" style={{ cursor: 'pointer' }} onClick={() => setActiveCardModal('profile')}>
+                <div className="faculty-overview-icon" style={{ background: '#dbeafe' }}>
+                  <User size={20} style={{ color: '#2563eb' }} fill="currentColor" />
+                </div>
+                <div className="faculty-overview-content">
+                  <div className="faculty-overview-title">Faculty Profile</div>
+                  <div className="faculty-overview-value">{facultyInfo?.name || currentUser.name}</div>
+                </div>
+              </div>
+
+              {/* Allocated Squad */}
+              <div className="faculty-overview-card" style={{ cursor: 'pointer' }} onClick={() => setActiveCardModal('squad')}>
+                <div className="faculty-overview-icon" style={{ background: '#d1fae5' }}>
+                  <Users size={20} style={{ color: '#059669' }} fill="currentColor" />
+                </div>
+                <div className="faculty-overview-content">
+                  <div className="faculty-overview-title">Allocated Squad</div>
+                  <div className="faculty-overview-value">{facultyInfo?.squad || 'Not Assigned'}</div>
+                </div>
+              </div>
+
+              {/* Squad Leader */}
+              <div className="faculty-overview-card" style={{ cursor: 'pointer' }} onClick={() => setActiveCardModal('leader')}>
+                <div className="faculty-overview-icon" style={{ background: '#fef3c7' }}>
+                  <GraduationCap size={20} style={{ color: '#d97706' }} fill="currentColor" />
+                </div>
+                <div className="faculty-overview-content">
+                  <div className="faculty-overview-title">Squad Leader</div>
+                  <div className="faculty-overview-value">{squadLeader ? squadLeader.name : 'Not Assigned'}</div>
+                </div>
+              </div>
+
+              {/* Faculty Colleagues */}
+              <div className="faculty-overview-card" style={{ cursor: 'pointer' }} onClick={() => setActiveCardModal('colleagues')}>
+                <div className="faculty-overview-icon" style={{ background: '#f3e8ff' }}>
+                  <Users size={20} style={{ color: '#7c3aed' }} fill="currentColor" />
+                </div>
+                <div className="faculty-overview-content">
+                  <div className="faculty-overview-title">Colleagues</div>
+                  <div className="faculty-overview-value">
+                    {(() => {
+                      const others = batchFaculty.filter(f => f.id !== (facultyInfo?.id || currentUser?.id));
+                      if (others.length === 1) return others[0].name;
+                      return `${others.length} Members`;
+                    })()}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* ── Today's Sessions + Charts Row ── */}
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1fr', gap: '20px' }}>
+
+              {/* Today's Sessions */}
+              <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '24px', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                  <h3 style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Calendar size={16} style={{ color: '#3b82f6' }} /> Today's Sessions
+                  </h3>
+                  <button onClick={() => setActiveTab('timetable')} style={{ background: 'none', border: 'none', color: '#3b82f6', fontSize: '12px', fontWeight: '700', cursor: 'pointer' }}>View Timetable →</button>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
+                  {FACULTY_SCHEDULE.map((sch, idx) => {
+                    const badgeClasses = ['blue', 'purple', 'green', 'orange']
+                    const badgeCls = badgeClasses[idx] || 'blue'
+                    return (
+                      <div key={idx} style={{ display: 'flex', gap: '12px', paddingBottom: idx < FACULTY_SCHEDULE.length - 1 ? '16px' : '0' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '44px', flexShrink: 0 }}>
+                          <span style={{ fontSize: '13px', fontWeight: '800', color: '#0f172a', lineHeight: 1 }}>{sch.time.split(' ')[0]}</span>
+                          <span style={{ fontSize: '10px', color: '#94a3b8', fontWeight: '600' }}>{sch.time.split(' ')[1]}</span>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0' }}>
+                          <div className={`desktop-schedule-icon-wrapper ${badgeCls}`} style={{ width: '28px', height: '28px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{getIcon(sch.iconName)}</div>
+                          {idx < FACULTY_SCHEDULE.length - 1 && <div style={{ width: '1.5px', flex: 1, background: '#e2e8f0', minHeight: '20px', marginTop: '2px' }} />}
+                        </div>
+                        <div style={{ flex: 1, paddingBottom: idx < FACULTY_SCHEDULE.length - 1 ? '0' : '0' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                            <div>
+                              <div style={{ fontSize: '13px', fontWeight: '700', color: '#0f172a' }}>{sch.event}</div>
+                              <div style={{ fontSize: '11px', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '3px', marginTop: '2px' }}>
+                                <MapPin size={10} />{sch.location}
+                              </div>
+                            </div>
+                            <span className={`upcoming-badge ${badgeCls}`} style={{ fontSize: '10px', padding: '2px 7px', borderRadius: '50px', fontWeight: '700', whiteSpace: 'nowrap' }}>Upcoming</span>
                           </div>
                         </div>
-                      );
-                    })
-                  ) : (
-                    <span style={{ fontSize: '13px', color: '#94a3b8', fontStyle: 'italic', fontWeight: '500', textAlign: 'center', display: 'block', paddingTop: '10px' }}>No other squad faculty.</span>
-                  )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Undertaking Form Submitted */}
+              <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '24px', boxShadow: '0 2px 8px rgba(0,0,0,0.04)', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                  <h3 style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <CheckSquare size={16} style={{ color: '#059669' }} /> Undertaking Form
+                  </h3>
+                  <button onClick={() => setActiveTab('nri')} style={{ background: 'none', border: 'none', color: '#3b82f6', fontSize: '12px', fontWeight: '700', cursor: 'pointer' }}>View Students →</button>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'center', flex: 1 }}>
+                  <CircleChart
+                    pct={undertakingPct}
+                    color="#059669"
+                    label="Undertaking Submitted"
+                    count={undertakingSubmitted}
+                    subtitle="Today"
+                  />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '16px', borderTop: '1px solid #f1f5f9', paddingTop: '16px' }}>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: '600', marginBottom: '2px' }}>Submitted</div>
+                    <div style={{ fontSize: '20px', fontWeight: '800', color: '#059669' }}>{undertakingSubmitted}</div>
+                  </div>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: '600', marginBottom: '2px' }}>Pending</div>
+                    <div style={{ fontSize: '20px', fontWeight: '800', color: '#ef4444' }}>{undertakingPending}</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Feedback Form Submitted */}
+              <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '24px', boxShadow: '0 2px 8px rgba(0,0,0,0.04)', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                  <h3 style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <MessageSquare size={16} style={{ color: '#ea580c' }} /> Feedback Form
+                  </h3>
+                  <button onClick={() => setActiveTab('feedback')} style={{ background: 'none', border: 'none', color: '#3b82f6', fontSize: '12px', fontWeight: '700', cursor: 'pointer' }}>View Feedback →</button>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'center', flex: 1 }}>
+                  <CircleChart
+                    pct={feedbackPct}
+                    color="#ea580c"
+                    label="Feedback Submitted"
+                    count={feedbackSubmitted}
+                    subtitle="This Month"
+                  />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '16px', borderTop: '1px solid #f1f5f9', paddingTop: '16px' }}>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: '600', marginBottom: '2px' }}>Submitted</div>
+                    <div style={{ fontSize: '20px', fontWeight: '800', color: '#ea580c' }}>{feedbackSubmitted}</div>
+                  </div>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: '600', marginBottom: '2px' }}>Pending</div>
+                    <div style={{ fontSize: '20px', fontWeight: '800', color: '#ef4444' }}>{feedbackPending}</div>
+                  </div>
                 </div>
               </div>
 
@@ -753,13 +942,141 @@ export default function FacultyDashboard() {
                         </tr>
                       )
                     })}
-                    {students.length === 0 && <tr><td colSpan="6" style={{ textAlign: 'center' }}>No students found.</td></tr>}
+                    {filteredStudents.length === 0 && <tr><td colSpan="6" style={{ textAlign: 'center', padding: '16px', color: '#94a3b8' }}>No students found.</td></tr>}
                   </tbody>
                 </table>
               </div>
             </div>
+            {/* ── Modals for Overview Cards ── */}
+            {activeCardModal && (
+              <div className="modal-overlay" onClick={() => setActiveCardModal(null)}>
+                <div className="modal-content animate-fade-in" onClick={e => e.stopPropagation()} style={{ maxWidth: '400px', width: '90%' }}>
+                  <div className="modal-header">
+                    <h3 style={{ margin: 0, fontSize: '18px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      {activeCardModal === 'profile' && <><User size={20} style={{ color: '#2563eb' }} /> Faculty Profile</>}
+                      {activeCardModal === 'squad' && <><Users size={20} style={{ color: '#059669' }} /> Allocated Squad</>}
+                      {activeCardModal === 'leader' && <><GraduationCap size={20} style={{ color: '#d97706' }} /> Squad Leader</>}
+                      {activeCardModal === 'colleagues' && <><Users size={20} style={{ color: '#7c3aed' }} /> Faculty Colleagues</>}
+                    </h3>
+                    <button className="modal-close" onClick={() => setActiveCardModal(null)}><X size={20} /></button>
+                  </div>
+                  <div className="modal-body" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                    {activeCardModal === 'profile' && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: '16px' }}>
+                          <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: '#dbeafe', color: '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            <User size={20} fill="currentColor" />
+                          </div>
+                          <div>
+                            <div style={{ fontSize: '11px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '2px' }}>Full Name</div>
+                            <div style={{ fontSize: '15px', fontWeight: '600', color: '#0f172a', wordBreak: 'break-word', whiteSpace: 'normal' }}>{facultyInfo?.name || currentUser.name}</div>
+                          </div>
+                        </div>
+                        <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: '16px' }}>
+                          <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: '#f3e8ff', color: '#7c3aed', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            <MessageSquare size={20} fill="currentColor" />
+                          </div>
+                          <div>
+                            <div style={{ fontSize: '11px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '2px' }}>Email Address</div>
+                            <div style={{ fontSize: '15px', fontWeight: '600', color: '#0f172a', wordBreak: 'break-word', whiteSpace: 'normal' }}>{facultyInfo?.email || currentUser.email}</div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    {activeCardModal === 'squad' && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: '16px' }}>
+                          <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: '#d1fae5', color: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            <Users size={20} fill="currentColor" />
+                          </div>
+                          <div>
+                            <div style={{ fontSize: '11px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '2px' }}>Allocated Squad Name</div>
+                            <div style={{ fontSize: '15px', fontWeight: '600', color: '#0f172a', wordBreak: 'break-word', whiteSpace: 'normal' }}>{facultyInfo?.squad || 'Not Assigned'}</div>
+                          </div>
+                        </div>
+                        {facultyInfo?.squad && (
+                          <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            <div style={{ fontSize: '14px', fontWeight: '600', color: '#334155' }}>Squad Statistics</div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', background: '#fff', borderRadius: '8px', border: '1px solid #f1f5f9' }}>
+                              <span style={{ fontSize: '13px', color: '#64748b', fontWeight: '500' }}>Total Students</span>
+                              <span style={{ fontSize: '15px', fontWeight: '700', color: '#0f172a' }}>{squadStudents.length}</span>
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                              <div style={{ padding: '12px', background: '#fff', borderRadius: '8px', border: '1px solid #f1f5f9', textAlign: 'center' }}>
+                                <div style={{ fontSize: '12px', color: '#64748b', fontWeight: '500', marginBottom: '4px' }}>Female</div>
+                                <div style={{ fontSize: '16px', fontWeight: '700', color: '#ec4899' }}>{squadStudents.filter(s => s.gender?.toLowerCase() === 'female').length}</div>
+                              </div>
+                              <div style={{ padding: '12px', background: '#fff', borderRadius: '8px', border: '1px solid #f1f5f9', textAlign: 'center' }}>
+                                <div style={{ fontSize: '12px', color: '#64748b', fontWeight: '500', marginBottom: '4px' }}>Male</div>
+                                <div style={{ fontSize: '16px', fontWeight: '700', color: '#3b82f6' }}>{squadStudents.length - squadStudents.filter(s => s.gender?.toLowerCase() === 'female').length}</div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    {activeCardModal === 'leader' && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        {squadLeader ? (
+                          <>
+                            <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: '16px' }}>
+                              <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: '#fef3c7', color: '#d97706', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                <GraduationCap size={20} fill="currentColor" />
+                              </div>
+                              <div>
+                                <div style={{ fontSize: '11px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '2px' }}>Leader Name</div>
+                                <div style={{ fontSize: '15px', fontWeight: '600', color: '#0f172a', wordBreak: 'break-word', whiteSpace: 'normal' }}>{squadLeader.name}</div>
+                              </div>
+                            </div>
+                            <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: '16px' }}>
+                              <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: '#f3e8ff', color: '#7c3aed', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                <MessageSquare size={20} fill="currentColor" />
+                              </div>
+                              <div>
+                                <div style={{ fontSize: '11px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '2px' }}>Email Address</div>
+                                <div style={{ fontSize: '15px', fontWeight: '600', color: '#0f172a', wordBreak: 'break-word', whiteSpace: 'normal' }}>{squadLeader.email}</div>
+                              </div>
+                            </div>
+                          </>
+                        ) : (
+                          <div style={{ background: '#f8fafc', padding: '24px', borderRadius: '12px', border: '1px dashed #cbd5e1', textAlign: 'center' }}>
+                            <div style={{ color: '#64748b', fontSize: '14px', fontWeight: '500' }}>No squad leader assigned.</div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    {activeCardModal === 'colleagues' && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        {(() => {
+                          const others = batchFaculty.filter(f => f.id !== (facultyInfo?.id || currentUser?.id));
+                          if (others.length === 0) return (
+                            <div style={{ background: '#f8fafc', padding: '24px', borderRadius: '12px', border: '1px dashed #cbd5e1', textAlign: 'center' }}>
+                              <div style={{ color: '#64748b', fontSize: '14px', fontWeight: '500' }}>No other colleagues in this squad.</div>
+                            </div>
+                          );
+                          return others.map(c => (
+                            <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                              <div style={{ width: '44px', height: '44px', borderRadius: '50%', background: '#e0e7ff', color: '#4f46e5', fontSize: '14px', fontWeight: '700', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                {c.name ? c.name.split(' ').map(n => n[0]).join('').substring(0,2).toUpperCase() : 'FC'}
+                              </div>
+                              <div>
+                                <div style={{ fontSize: '15px', fontWeight: '600', color: '#0f172a', wordBreak: 'break-word', whiteSpace: 'normal' }}>{c.name}</div>
+                                <div style={{ fontSize: '13px', color: '#64748b', wordBreak: 'break-word', whiteSpace: 'normal', marginTop: '2px' }}>{c.email}</div>
+                              </div>
+                            </div>
+                          ));
+                        })()}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
           </div>
-        )}
+          )
+        })()}
+
 
         {activeTab === 'nri' && (
           <div className="glass-card animate-fade-in">

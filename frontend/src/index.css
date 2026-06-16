@@ -627,7 +627,7 @@ textarea.input-field { border-radius: 12px; resize: vertical; min-height: 100px;
   border-right: 1px solid rgba(255,255,255,0.06);
   display: flex; flex-direction: column;
   height: 100vh; position: sticky; top: 0;
-  overflow-y: auto; overflow-x: hidden;
+  overflow: hidden;
 }
 .sidebar::-webkit-scrollbar { width: 4px; }
 .sidebar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 4px; }
@@ -674,7 +674,10 @@ textarea.input-field { border-radius: 12px; resize: vertical; min-height: 100px;
 .sidebar-nav {
   flex: 1; padding: 16px 12px;
   display: flex; flex-direction: column; gap: 4px;
+  overflow-y: auto; overflow-x: hidden;
 }
+.sidebar-nav::-webkit-scrollbar { width: 4px; }
+.sidebar-nav::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 4px; }
 .sidebar-section-label {
   font-size: 10px; font-weight: 750; letter-spacing: 1.5px;
   text-transform: uppercase; color: rgba(255,255,255,0.32);
@@ -776,10 +779,12 @@ textarea.input-field { border-radius: 12px; resize: vertical; min-height: 100px;
   border-top: 1px solid rgba(255,255,255,0.06);
   background: rgba(0, 0, 0, 0.18);
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
+  align-items: stretch;
   gap: 8px;
   box-sizing: border-box;
+  flex-shrink: 0;
+  margin-bottom: calc(64px + env(safe-area-inset-bottom));
 }
 .sidebar-user-info {
   display: flex;
@@ -2104,7 +2109,7 @@ textarea.input-field { border-radius: 12px; resize: vertical; min-height: 100px;
   /* Cards Redesign */
   .desktop-card {
     background: #ffffff;
-    border-radius: 20px;
+    border-radius: 12px;
     border: 1px solid #e2e8f0;
     padding: 24px;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.02);
@@ -2825,7 +2830,7 @@ textarea.input-field { border-radius: 12px; resize: vertical; min-height: 100px;
 
   .desktop-stat-card {
     position: relative;
-    border-radius: 20px !important;
+    border-radius: 16px !important;
     padding: 16px !important;
     color: #ffffff !important;
     display: flex !important;
@@ -2893,7 +2898,7 @@ textarea.input-field { border-radius: 12px; resize: vertical; min-height: 100px;
   .mobile-quick-card {
     background: #ffffff;
     padding: 16px 14px;
-    border-radius: 20px;
+    border-radius: 12px;
     border: 1px solid #e2e8f0;
     display: flex;
     flex-direction: column;
@@ -3165,7 +3170,7 @@ textarea.input-field { border-radius: 12px; resize: vertical; min-height: 100px;
   }
 
   .glass-card, .desktop-card {
-    border-radius: 20px !important;
+    border-radius: 12px !important;
     padding: 16px !important;
   }
 }
@@ -3319,8 +3324,739 @@ textarea.input-field { border-radius: 12px; resize: vertical; min-height: 100px;
   cursor: pointer;
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════════
+   PREMIUM ENTERPRISE HERO BANNER
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+/* ─── Animated Gradient Mesh Background ─── */
+@keyframes heroGradientShift {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes heroOrbFloat1 {
+  0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.35; }
+  25%      { transform: translate(30px, -20px) scale(1.1); opacity: 0.45; }
+  50%      { transform: translate(-10px, -35px) scale(0.95); opacity: 0.3; }
+  75%      { transform: translate(-25px, 10px) scale(1.05); opacity: 0.4; }
+}
+
+@keyframes heroOrbFloat2 {
+  0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.25; }
+  33%      { transform: translate(-40px, 20px) scale(1.15); opacity: 0.35; }
+  66%      { transform: translate(20px, -30px) scale(0.9); opacity: 0.2; }
+}
+
+@keyframes heroOrbFloat3 {
+  0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.2; }
+  40%      { transform: translate(25px, 25px) scale(1.08); opacity: 0.3; }
+  80%      { transform: translate(-15px, -20px) scale(0.92); opacity: 0.18; }
+}
+
+@keyframes heroPulseGlow {
+  0%, 100% { opacity: 0.08; transform: scale(1); }
+  50%      { opacity: 0.15; transform: scale(1.02); }
+}
+
+@keyframes heroCurveFlow {
+  0%   { stroke-dashoffset: 1000; opacity: 0.06; }
+  50%  { stroke-dashoffset: 0; opacity: 0.12; }
+  100% { stroke-dashoffset: -1000; opacity: 0.06; }
+}
+
+@keyframes heroParticleFloat {
+  0%, 100% { transform: translateY(0) translateX(0); opacity: 0; }
+  10%      { opacity: 0.6; }
+  90%      { opacity: 0.6; }
+  50%      { transform: translateY(-60px) translateX(15px); opacity: 0.8; }
+}
+
+@keyframes heroStatusPulse {
+  0%   { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.5); }
+  70%  { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+
+@keyframes heroLineGlow {
+  0%, 100% { opacity: 0.04; }
+  50%      { opacity: 0.1; }
+}
+
+/* ─── Hero Container ─── */
+.hero-banner {
+  position: relative;
+  border-radius: 24px;
+  overflow: hidden;
+  min-height: 60px;
+  background: linear-gradient(135deg, #020813 0%, #061530 45%, #0b2554 100%);
+  background-size: 400% 400%;
+  animation: heroGradientShift 20s ease infinite;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 24px;
+  box-shadow:
+    0 4px 6px -1px rgba(0, 0, 0, 0.1),
+    0 20px 50px -12px rgba(6, 20, 42, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  margin-bottom: 0px;
+}
+
+/* ─── Ambient Orbs ─── */
+.hero-orb {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  filter: blur(60px);
+  will-change: transform, opacity;
+}
+
+.hero-orb--1 {
+  width: 300px;
+  height: 300px;
+  background: radial-gradient(circle, rgba(37, 99, 235, 0.35) 0%, transparent 70%);
+  top: -80px;
+  right: -40px;
+  animation: heroOrbFloat1 12s ease-in-out infinite;
+}
+
+.hero-orb--2 {
+  width: 250px;
+  height: 250px;
+  background: radial-gradient(circle, rgba(59, 130, 246, 0.25) 0%, transparent 70%);
+  bottom: -60px;
+  left: -30px;
+  animation: heroOrbFloat2 15s ease-in-out infinite;
+}
+
+.hero-orb--3 {
+  width: 180px;
+  height: 180px;
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.2) 0%, transparent 70%);
+  top: 30%;
+  left: 45%;
+  animation: heroOrbFloat3 18s ease-in-out infinite;
+}
+
+/* ─── Flowing Curves (SVG overlay) ─── */
+.hero-curves {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 0;
+}
+
+.hero-curves svg {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+}
+
+.hero-curves path {
+  fill: none;
+  stroke: rgba(59, 130, 246, 0.1);
+  stroke-width: 1;
+  stroke-dasharray: 1000;
+  animation: heroCurveFlow 25s linear infinite;
+}
+
+.hero-curves path:nth-child(2) {
+  stroke: rgba(99, 102, 241, 0.07);
+  stroke-width: 0.8;
+  animation-duration: 30s;
+  animation-delay: -5s;
+}
+
+.hero-curves path:nth-child(3) {
+  stroke: rgba(37, 99, 235, 0.05);
+  stroke-width: 1.2;
+  animation-duration: 22s;
+  animation-delay: -10s;
+}
+
+/* ─── Grid Lines ─── */
+.hero-grid-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.015) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.015) 1px, transparent 1px);
+  background-size: 60px 60px;
+  animation: heroLineGlow 8s ease-in-out infinite;
+  mask-image: radial-gradient(ellipse at 30% 50%, black 0%, transparent 70%);
+  -webkit-mask-image: radial-gradient(ellipse at 30% 50%, black 0%, transparent 70%);
+}
+
+/* ─── Floating Particles ─── */
+.hero-particles {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.hero-particle {
+  position: absolute;
+  width: 2px;
+  height: 2px;
+  background: rgba(147, 197, 253, 0.5);
+  border-radius: 50%;
+}
+
+.hero-particle:nth-child(1) { left: 15%; top: 25%; }
+.hero-particle:nth-child(2) { left: 35%; top: 55%; width: 3px; height: 3px; opacity: 0.7; }
+.hero-particle:nth-child(3) { left: 55%; top: 20%; }
+.hero-particle:nth-child(4) { left: 72%; top: 60%; width: 2.5px; height: 2.5px; opacity: 0.6; }
+.hero-particle:nth-child(5) { left: 88%; top: 35%; }
+.hero-particle:nth-child(6) { left: 25%; top: 70%; width: 1.5px; height: 1.5px; opacity: 0.4; }
+.hero-particle:nth-child(7) { left: 65%; top: 80%; }
+.hero-particle:nth-child(8) { left: 45%; top: 42%; width: 2px; height: 2px; opacity: 0.55; }
+
+/* ─── LTC Watermark ─── */
+.hero-watermark {
+  position: absolute;
+  right: 40px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 220px;
+  height: auto;
+  opacity: 0.04;
+  pointer-events: none;
+  z-index: 0;
+  filter: brightness(2) grayscale(1);
+  user-select: none;
+}
+
+/* ─── Glassmorphism Edge Glow ─── */
+.hero-edge-glow {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, rgba(59, 130, 246, 0.3) 30%, rgba(99, 102, 241, 0.2) 70%, transparent 100%);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* ─── Hero Content ─── */
+.hero-content {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 32px;
+  max-width: none;
+  flex-grow: 1;
+  margin-right: 28px;
+}
+
+.hero-text-col {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+}
+
+.hero-greeting {
+  font-size: 24px;
+  font-weight: 850;
+  color: #ffffff;
+  letter-spacing: -0.6px;
+  line-height: 1.2;
+  margin: 0;
+  text-shadow: 0 2px 20px rgba(0, 0, 0, 0.3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ─── Faculty Overview Cards ─── */
+.faculty-overview-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 24px 16px;
+  min-height: 110px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  overflow: hidden;
+  transition: all 0.2s ease;
+}
+.faculty-overview-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  border-color: #cbd5e1;
+}
+.faculty-overview-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.faculty-overview-content {
+  min-width: 0;
+  flex: 1;
+}
+.faculty-overview-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.faculty-overview-value {
+  font-size: 15px;
+  font-weight: 800;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.faculty-overview-subtitle {
+  font-size: 12px;
+  color: #64748b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hero-status-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hero-status-dot {
+  width: 8px;
+  height: 8px;
+  background: #10b981;
+  border-radius: 50%;
+  animation: heroStatusPulse 2s infinite;
+  flex-shrink: 0;
+}
+
+.hero-status-text {
+  font-size: 13.5px;
+  font-weight: 550;
+  color: rgba(255, 255, 255, 0.6);
+  letter-spacing: 0.2px;
+}
+.hero-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+/* ─── Status Badge (Glassmorphism) ─── */
+.hero-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 100px;
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+  letter-spacing: 0.2px;
+}
+
+.hero-status-dot {
+  width: 7px;
+  height: 7px;
+  background: #10b981;
+  border-radius: 50%;
+  animation: heroStatusPulse 2s infinite;
+  flex-shrink: 0;
+}
+
+/* ─── Date & Time Chips ─── */
+.hero-date-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 100px;
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(203, 213, 225, 0.7);
+  letter-spacing: 0.1px;
+}
+
+.hero-date-chip svg {
+  color: rgba(147, 197, 253, 0.6);
+  flex-shrink: 0;
+}
+
+/* ─── Hero Right Actions ─── */
+.hero-actions {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.hero-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 18px;
+  height: 42px;
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  font-family: inherit;
+  letter-spacing: 0.1px;
+}
+
+.hero-action-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.15);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.hero-action-btn:active {
+  transform: translateY(0);
+}
+
+.hero-action-btn--icon-only {
+  width: 42px;
+  padding: 0;
+}
+
+.hero-notification-dot {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 6px;
+  height: 6px;
+  background: #ef4444;
+  border-radius: 50%;
+  box-shadow: 0 0 6px rgba(239, 68, 68, 0.5);
+}
+
+/* ─── Bottom Accent Line ─── */
+.hero-accent-line {
+  position: absolute;
+  bottom: 0;
+  left: 5%;
+  width: 90%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(59, 130, 246, 0.4), rgba(99, 102, 241, 0.3), transparent);
+  border-radius: 2px;
+  pointer-events: none;
+  z-index: 1;
+  animation: heroPulseGlow 4s ease-in-out infinite;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   HERO BANNER – MOBILE RESPONSIVE
+   ═══════════════════════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+  .hero-banner {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 20px;
+    min-height: 52px;
+    border-radius: 32px;
+  }
+
+  .hero-content {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    gap: 12px;
+    margin-right: 0;
+  }
+
+  .hero-text-col {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .hero-greeting {
+    font-size: 20px;
+    font-weight: 800;
+    letter-spacing: -0.4px;
+  }
+
+  .hero-status-line {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .hero-status-dot {
+    width: 6.5px;
+    height: 6.5px;
+  }
+
+  .hero-status-text {
+    font-size: 11px;
+    font-weight: 550;
+    color: rgba(255, 255, 255, 0.6);
+  }
+
+  .hero-watermark {
+    width: 120px;
+    right: 16px;
+    opacity: 0.03;
+  }
+
+  .hero-orb--1 {
+    width: 180px;
+    height: 180px;
+    top: -60px;
+    right: -30px;
+  }
+
+  .hero-orb--2 {
+    width: 140px;
+    height: 140px;
+    bottom: -40px;
+    left: -20px;
+  }
+
+  .hero-orb--3 {
+    width: 100px;
+    height: 100px;
+  }
+
+  .hero-actions {
+    display: none;
+  }
+
+  .hero-particle:nth-child(n+5) {
+    display: none;
+  }
+}
+
+/* ─── White Stat Cards Styles (Screenshot Redesign) ─── */
+.desktop-stat-card.white-card {
+  background: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 24px !important;
+  padding: 20px 24px !important;
+  min-height: 142px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: space-between !important;
+  cursor: pointer;
+  transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.01) !important;
+}
+
+.desktop-stat-card.white-card:hover {
+  transform: translateY(-3px) !important;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.05) !important;
+}
+
+.stat-card-top {
+  display: flex !important;
+  align-items: center !important;
+  gap: 16px !important;
+  width: 100%;
+}
+
+.stat-circle-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.stat-circle-icon.blue {
+  background: #2563eb !important;
+  color: #ffffff !important;
+}
+
+.stat-circle-icon.purple {
+  background: #7c3aed !important;
+  color: #ffffff !important;
+}
+
+.stat-circle-icon.green {
+  background: #059669 !important;
+  color: #ffffff !important;
+}
+
+.stat-circle-icon.orange {
+  background: #ea580c !important;
+  color: #ffffff !important;
+}
+
+.stat-card-text-group {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 2px !important;
+}
+
+.stat-card-title {
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  color: #64748b;
+}
+
+.stat-card-value {
+  font-size: 28px !important;
+  font-weight: 800 !important;
+  color: #0f172a;
+  line-height: 1.1 !important;
+  letter-spacing: -0.5px !important;
+}
+
+.stat-card-bottom {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  width: 100%;
+  margin-top: 14px;
+}
+
+.stat-card-link {
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.1px !important;
+  display: inline-flex;
+  align-items: center;
+}
+
+.stat-card-link.blue { color: #2563eb !important; }
+.stat-card-link.purple { color: #7c3aed !important; }
+.stat-card-link.green { color: #059669 !important; }
+.stat-card-link.orange { color: #ea580c !important; }
+
+.mini-chart {
+  flex-shrink: 0;
+  display: block;
+}
+
+@media (max-width: 768px) {
+  .desktop-stat-card.white-card {
+    border-radius: 18px !important;
+    padding: 14px 16px !important;
+    min-height: 110px !important;
+  }
+  .stat-card-value {
+    font-size: 21px !important;
+  }
+  .stat-circle-icon {
+    width: 36px;
+    height: 36px;
+  }
+  .stat-card-bottom {
+    margin-top: 10px;
+  }
+}
+
+/* ─── Schedule Timeline Badge & Icon Overrides ─── */
+.upcoming-badge {
+  display: inline-flex !important;
+  align-items: center !important;
+  padding: 4px 10px !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  border-radius: 8px !important;
+  text-transform: capitalize !important;
+}
+
+.upcoming-badge.blue {
+  background: rgba(37, 99, 235, 0.08) !important;
+  color: #2563eb !important;
+}
+
+.upcoming-badge.purple {
+  background: rgba(124, 58, 237, 0.08) !important;
+  color: #7c3aed !important;
+}
+
+.upcoming-badge.green {
+  background: rgba(5, 150, 105, 0.08) !important;
+  color: #059669 !important;
+}
+
+.upcoming-badge.orange {
+  background: rgba(234, 88, 12, 0.08) !important;
+  color: #ea580c !important;
+}
+
+.desktop-schedule-icon-wrapper.blue, .mobile-schedule-icon-wrapper.blue {
+  background: rgba(37, 99, 235, 0.05) !important;
+  border: 1.5px solid rgba(37, 99, 235, 0.2) !important;
+  color: #2563eb !important;
+}
+
+.desktop-schedule-icon-wrapper.purple, .mobile-schedule-icon-wrapper.purple {
+  background: rgba(124, 58, 237, 0.05) !important;
+  border: 1.5px solid rgba(124, 58, 237, 0.2) !important;
+  color: #7c3aed !important;
+}
+
+.desktop-schedule-icon-wrapper.green, .mobile-schedule-icon-wrapper.green {
+  background: rgba(5, 150, 105, 0.05) !important;
+  border: 1.5px solid rgba(5, 150, 105, 0.2) !important;
+  color: #059669 !important;
+}
+
+.desktop-schedule-icon-wrapper.orange, .mobile-schedule-icon-wrapper.orange {
+  background: rgba(234, 88, 12, 0.05) !important;
+  border: 1.5px solid rgba(234, 88, 12, 0.2) !important;
+  color: #ea580c !important;
+}
 
 
-
-
-
+/* ─── Mobile Specific Fixes ─── */
+@media (max-width: 768px) {
+  .sidebar-footer {
+    padding-bottom: 40px !important;
+  }
+  .faculty-overview-value {
+    white-space: normal !important;
+    word-break: break-word !important;
+    overflow: visible !important;
+    font-size: 14px !important;
+    line-height: 1.3 !important;
+  }
+}
